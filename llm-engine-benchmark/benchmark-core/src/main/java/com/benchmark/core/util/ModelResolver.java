@@ -1,4 +1,4 @@
-package com.benchmark.core.util;
+package com.benchmark.core;
 
 import java.io.IOException;
 import java.net.URI;
