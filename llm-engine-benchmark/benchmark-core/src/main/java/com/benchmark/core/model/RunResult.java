@@ -1,4 +1,4 @@
-package com.benchmark.core;
+package com.benchmark.core.model;
 
 public record RunResult(
         EngineType engineType,

@@ -1,4 +1,4 @@
-package com.benchmark.core;
+package com.benchmark.core.registry;
 
 import java.util.EnumMap;
 import java.util.Map;

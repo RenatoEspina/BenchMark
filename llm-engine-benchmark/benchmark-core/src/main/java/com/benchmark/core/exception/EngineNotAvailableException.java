@@ -1,4 +1,4 @@
-package com.benchmark.core;
+package com.benchmark.core.exception;
 
 public class EngineNotAvailableException extends RuntimeException {
 
