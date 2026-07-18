@@ -1,4 +1,4 @@
-package com.benchmark.core.model;
+package com.benchmark.core;
 
 import java.nio.file.Path;
 

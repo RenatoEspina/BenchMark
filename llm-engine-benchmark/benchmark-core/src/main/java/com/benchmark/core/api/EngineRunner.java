@@ -1,4 +1,4 @@
-package com.benchmark.core.api;
+package com.benchmark.core;
 
 public interface EngineRunner extends AutoCloseable {
 
