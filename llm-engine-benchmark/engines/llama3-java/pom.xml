@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.benchmark</groupId>
+        <artifactId>llm-engine-benchmark</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>engine-llama3-java</artifactId>
+    <name>Engine Llama3.java</name>
+
+    <dependencies>
+
+        <!-- Benchmark Core -->
+        <dependency>
+            <groupId>com.benchmark</groupId>
+            <artifactId>benchmark-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!--
+            Llama3.java (com.llama4j.Llama3, vendorizado en src/main/java/com/llama4j)
+            No tiene artefacto en Maven Central: es un unico archivo fuente sin
+            dependencias (https://github.com/mukel/llama3.java), por eso se incluye
+            el .java directamente en este modulo en vez de declarar una dependencia.
+        -->
+
+    </dependencies>
+
+</project>

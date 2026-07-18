@@ -22,6 +22,7 @@
     <modules>
         <module>benchmark-core</module>
         <module>engines/jlama</module>
+        <module>engines/llama3-java</module>
         <module>benchmark-app</module>
     </modules>
 
