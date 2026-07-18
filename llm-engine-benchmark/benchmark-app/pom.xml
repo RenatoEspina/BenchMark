@@ -29,6 +29,11 @@
             <artifactId>engine-llama3-java</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.benchmark</groupId>
+            <artifactId>engine-gpullama3-java</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
