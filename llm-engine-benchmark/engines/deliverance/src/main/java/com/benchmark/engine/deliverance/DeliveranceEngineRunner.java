@@ -1,9 +1,12 @@
 package com.benchmark.engine.deliverance;
 
+import com.fasterxml.jackson.datatype.guava.GuavaModule;
+
 import com.benchmark.core.EngineRunner;
 import com.benchmark.core.EngineType;
 import com.benchmark.core.ModelSpec;
 import com.benchmark.core.RunResult;
+
 import io.teknek.deliverance.generator.GeneratorParameters;
 import io.teknek.deliverance.generator.Response;
 import io.teknek.deliverance.model.AutoModelForCausaLm;
@@ -17,6 +20,24 @@ import java.util.UUID;
 public final class DeliveranceEngineRunner implements EngineRunner {
 
     private static final String DEFAULT_SYSTEM_PROMPT = "Eres un asistente conciso.";
+
+    // Registramos Guava explicitly e imprimimos cualquier error para no tener fallas silenciosas.
+    static {
+        System.out.println("[DELIVERANCE-INIT] Iniciando inyección de GuavaModule...");
+        try {
+            io.teknek.deliverance.JsonUtils.om.registerModule(new GuavaModule());
+            System.out.println("[DELIVERANCE-INIT] Módulo registrado en Deliverance core.");
+        } catch (Throwable t) {
+            System.err.println("[DELIVERANCE-INIT] Error en core: " + t.getMessage());
+        }
+
+        try {
+            io.teknek.deliverance.safetensors.JsonUtils.om.registerModule(new GuavaModule());
+            System.out.println("[DELIVERANCE-INIT] Módulo registrado en Safetensors.");
+        } catch (Throwable t) {
+            System.err.println("[DELIVERANCE-INIT] Error en Safetensors: " + t.getMessage());
+        }
+    }
 
     private CausalLanguageModel model;
 
