@@ -4,7 +4,7 @@ set TORNADO_SDK=C:\Users\yonom\AppData\Local\TornadoVM\tornadovm-5.0.0-jdk25-cud
 
 "C:\Program Files\Java\jdk-25.0.3\bin\java" ^
   -server -XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI ^
-  -Xms20g -Xmx20g ^
+  -Xms8g -Xmx8g ^
   --enable-preview ^
   -Djava.library.path=%TORNADO_SDK%/lib ^
   -Djdk.module.showModuleResolution=false ^
@@ -21,7 +21,7 @@ set TORNADO_SDK=C:\Users\yonom\AppData\Local\TornadoVM\tornadovm-5.0.0-jdk25-cud
   -Dtornado.fullDebug=false ^
   -Dtornado.printKernel=false ^
   -Dtornado.print.bytecodes=false ^
-  -Dtornado.device.memory=4GB ^
+  -Dtornado.device.memory=6GB ^
   -Dtornado.profiler=false ^
   -Dtornado.log.profiler=false ^
   -Dtornado.enable.fastMathOptimizations=true ^
