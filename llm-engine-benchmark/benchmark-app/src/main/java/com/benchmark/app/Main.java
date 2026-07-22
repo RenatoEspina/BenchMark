@@ -95,12 +95,12 @@ public final class Main {
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
             System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
             runner.ensureReady(spec);
+            ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
             RunResult result = runner.run(spec, prompt);
-            printResult(result);
+            printResult(result.withResourceUsage(snapshot.diff()), inProcess(engineType));
         } catch (Exception e) {
             System.out.println("Error ejecutando el benchmark: " + e.getMessage());
         }
-    }
 
     private static void deleteModels(Scanner scanner) {
         if (!Files.isDirectory(DEFAULT_WORK_DIR)) {
@@ -172,12 +172,20 @@ public final class Main {
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
             System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
             runner.ensureReady(spec);
+            ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
             RunResult result = runner.run(spec, prompt);
-            printResult(result);
+            printResult(result.withResourceUsage(snapshot.diff()), inProcess(engineType));
         }
     }
 
-    private static void printResult(RunResult result) {
+    private static boolean inProcess(EngineType type) {
+        return switch (type) {
+            case JLAMA, LLAMA3_JAVA, GPULLAMA3_JAVA, DELIVERANCE -> true;
+            default -> false;
+        };
+    }
+
+    private static void printResult(RunResult result, boolean inProcess) {
         System.out.println();
         System.out.println("Engine: " + result.engineType());
         System.out.println("Modelo: " + result.modelRef());
@@ -187,6 +195,15 @@ public final class Main {
         System.out.println("Generacion: " + result.generateTimeMs() + " ms");
         System.out.println("Tokens (aprox): " + result.tokensGenerated());
         System.out.println("Tokens/seg (aprox): " + String.format("%.2f", result.tokensPerSecond()));
+        ResourceUsage usage = result.resourceUsage();
+        if (usage != null) {
+            String scope = inProcess ? "proceso del engine" : "solo overhead de benchmark-app (engine externo)";
+            System.out.println("Recursos (" + scope + "):");
+            System.out.println("  Heap usado: " + usage.heapUsedMb() + " MB (delta " + usage.heapDeltaMb() + " MB)");
+            System.out.println("  CPU proceso: " + String.format("%.1f", usage.processCpuTimeMs()) + " ms");
+            System.out.println("  GC: " + usage.gcCount() + " colecciones, " + usage.gcTimeMs() + " ms");
+            System.out.println("  CPUs disponibles: " + usage.availableProcessors());
+        }
     }
 
     private static Map<String, String> parseArgs(String[] args) {

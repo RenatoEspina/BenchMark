@@ -8,7 +8,8 @@ public record RunResult(
         long loadTimeMs,
         long generateTimeMs,
         int tokensGenerated,
-        double tokensPerSecond
+        double tokensPerSecond,
+        ResourceUsage resourceUsage
 ) {
     public static RunResult of(
             EngineType engineType,
@@ -22,6 +23,10 @@ public record RunResult(
         double tokensPerSecond = generateTimeMs > 0
                 ? (tokensGenerated * 1000.0) / generateTimeMs
                 : 0.0;
-        return new RunResult(engineType, modelRef, promptText, responseText, loadTimeMs, generateTimeMs, tokensGenerated, tokensPerSecond);
+        return new RunResult(engineType, modelRef, promptText, responseText, loadTimeMs, generateTimeMs, tokensGenerated, tokensPerSecond, null);
+    }
+
+    public RunResult withResourceUsage(ResourceUsage usage) {
+        return new RunResult(engineType, modelRef, promptText, responseText, loadTimeMs, generateTimeMs, tokensGenerated, tokensPerSecond, usage);
     }
 }

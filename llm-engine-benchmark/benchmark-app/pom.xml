@@ -36,11 +36,6 @@
         </dependency>
         <dependency>
             <groupId>com.benchmark</groupId>
-            <artifactId>engine-deliverance</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.benchmark</groupId>
             <artifactId>engine-llama-cpp</artifactId>
             <version>${project.version}</version>
         </dependency>

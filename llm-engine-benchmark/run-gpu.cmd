@@ -1,8 +1,8 @@
 @echo off
 setlocal
-set TORNADO_SDK=C:\Users\yonom\AppData\Local\TornadoVM\tornadovm-5.0.0-jdk21-cuda
+set TORNADO_SDK=C:\Users\yonom\AppData\Local\TornadoVM\tornadovm-5.0.0-jdk25-cuda
 
-"C:\Program Files\Java\jdk-21\bin\java" ^
+"C:\Program Files\Java\jdk-25.0.3\bin\java" ^
   -server -XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI ^
   -Xms20g -Xmx20g ^
   --enable-preview ^
@@ -21,7 +21,7 @@ set TORNADO_SDK=C:\Users\yonom\AppData\Local\TornadoVM\tornadovm-5.0.0-jdk21-cud
   -Dtornado.fullDebug=false ^
   -Dtornado.printKernel=false ^
   -Dtornado.print.bytecodes=false ^
-  -Dtornado.device.memory=14GB ^
+  -Dtornado.device.memory=4GB ^
   -Dtornado.profiler=false ^
   -Dtornado.log.profiler=false ^
   -Dtornado.enable.fastMathOptimizations=true ^
@@ -31,8 +31,9 @@ set TORNADO_SDK=C:\Users\yonom\AppData\Local\TornadoVM\tornadovm-5.0.0-jdk21-cud
   -Dtornado.eventpool.maxwaitevents=32000 ^
   --upgrade-module-path %TORNADO_SDK%/share/java/graalJars ^
   @%TORNADO_SDK%/etc/exportLists/common-exports ^
-  @%TORNADO_SDK%/etc/exportLists/ptx-exports ^
+  @%TORNADO_SDK%/etc/exportLists/cuda-exports ^
   --add-modules ALL-SYSTEM,jdk.incubator.vector,tornado.runtime,tornado.annotation,tornado.drivers.common,tornado.drivers.cuda ^
+  --enable-native-access=tornado.drivers.cuda ^
   -Dgpullama3.onGPU=true ^
   -jar benchmark-app\target\benchmark-app.jar
 
