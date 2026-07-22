@@ -44,6 +44,7 @@
         <module>engines/deliverance</module>
         <module>engines/llama-cpp</module>
         <module>engines/ollama</module>
+        <module>engines/vllm</module>
         <module>benchmark-app</module>
     </modules>
 
