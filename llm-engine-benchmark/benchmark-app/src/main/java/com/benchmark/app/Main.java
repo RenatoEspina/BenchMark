@@ -5,6 +5,7 @@ import com.benchmark.core.EngineRunner;
 import com.benchmark.core.EngineType;
 import com.benchmark.core.ModelSpec;
 import com.benchmark.core.RunResult;
+import com.benchmark.core.ResourceUsage;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -101,6 +102,7 @@ public final class Main {
         } catch (Exception e) {
             System.out.println("Error ejecutando el benchmark: " + e.getMessage());
         }
+    }
 
     private static void deleteModels(Scanner scanner) {
         if (!Files.isDirectory(DEFAULT_WORK_DIR)) {
@@ -180,7 +182,7 @@ public final class Main {
 
     private static boolean inProcess(EngineType type) {
         return switch (type) {
-            case JLAMA, LLAMA3_JAVA, GPULLAMA3_JAVA, DELIVERANCE -> true;
+            case JLAMA, LLAMA3_JAVA, GPULLAMA3_JAVA -> true;
             default -> false;
         };
     }
