@@ -44,6 +44,11 @@
             <artifactId>engine-llama-cpp</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.benchmark</groupId>
+            <artifactId>engine-ollama</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

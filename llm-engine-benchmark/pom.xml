@@ -43,6 +43,7 @@
         <module>engines/gpullama3-java</module>
         <module>engines/deliverance</module>
         <module>engines/llama-cpp</module>
+        <module>engines/ollama</module>
         <module>benchmark-app</module>
     </modules>
 
