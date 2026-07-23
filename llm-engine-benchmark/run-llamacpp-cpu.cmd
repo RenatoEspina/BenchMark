@@ -4,6 +4,4 @@ chcp 65001 >nul
   -Dfile.encoding=UTF-8 ^
   -Dllamacpp.binary="C:\Users\yonom\AppData\Local\Llamacpp\cpu\llama-cli.exe" ^
   -Dllamacpp.ctxSize=4096 ^
-  -jar benchmark-app\target\benchmark-app.jar ^
-  --engine=LLAMA_CPP ^
-  --model=%1
+  -jar benchmark-app\target\benchmark-app.jar

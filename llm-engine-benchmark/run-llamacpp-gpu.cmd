@@ -5,6 +5,4 @@ chcp 65001 >nul
   -Dllamacpp.binary="C:\Users\yonom\AppData\Local\Llamacpp\cuda\llama-cli.exe" ^
   -Dllamacpp.ctxSize=4096 ^
   -Dllamacpp.nGpuLayers=999 ^
-  -jar benchmark-app\target\benchmark-app.jar ^
-  --engine=LLAMA_CPP ^
-  --model=%1
+  -jar benchmark-app\target\benchmark-app.jar
