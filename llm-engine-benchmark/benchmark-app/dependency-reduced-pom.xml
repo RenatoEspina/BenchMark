@@ -24,6 +24,9 @@
                 <transformer />
                 <transformer>
                   <mainClass>com.benchmark.app.Main</mainClass>
+                  <manifestEntries>
+                    <Multi-Release>true</Multi-Release>
+                  </manifestEntries>
                 </transformer>
               </transformers>
             </configuration>

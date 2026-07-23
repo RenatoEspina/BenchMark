@@ -18,6 +18,7 @@ public final class LlamaCppEngineRunner implements EngineRunner {
     private static final String DEFAULT_SYSTEM_PROMPT = "Eres un asistente conciso.";
     private static final String BINARY = System.getProperty("llamacpp.binary", "llama-cli");
     private static final int DEFAULT_CTX_SIZE = Integer.getInteger("llamacpp.ctxSize", 4096);
+    private static final int DEFAULT_N_GPU_LAYERS = Integer.getInteger("llamacpp.nGpuLayers", 0);
 
     private Path modelPath;
 
@@ -68,6 +69,10 @@ public final class LlamaCppEngineRunner implements EngineRunner {
         command.add(String.valueOf(spec.temperature()));
         command.add("-c");
         command.add(String.valueOf(DEFAULT_CTX_SIZE));
+        if (DEFAULT_N_GPU_LAYERS > 0) {
+            command.add("-ngl");
+            command.add(String.valueOf(DEFAULT_N_GPU_LAYERS));
+        }
         command.add("--no-display-prompt");
         command.add("--simple-io");
         command.add("--no-warmup");

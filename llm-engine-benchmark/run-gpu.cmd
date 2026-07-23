@@ -1,5 +1,6 @@
 @echo off
 setlocal
+chcp 65001 >nul
 set TORNADO_SDK=C:\Users\yonom\AppData\Local\TornadoVM\tornadovm-5.0.0-jdk25-cuda
 
 "C:\Program Files\Java\jdk-25.0.3\bin\java" ^
