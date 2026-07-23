@@ -202,6 +202,11 @@ public final class Main {
             String scope = inProcess ? "proceso del engine" : "solo overhead de benchmark-app (engine externo)";
             System.out.println("Recursos (" + scope + "):");
             System.out.println("  Heap usado: " + usage.heapUsedMb() + " MB (delta " + usage.heapDeltaMb() + " MB)");
+            if (usage.rssMb() >= 0) {
+                System.out.println("  RAM real (RSS): " + usage.rssMb() + " MB (delta " + usage.rssDeltaMb() + " MB, pico " + usage.rssPeakMb() + " MB)");
+            } else {
+                System.out.println("  RAM real (RSS): no disponible en este sistema operativo");
+            }
             System.out.println("  CPU proceso: " + String.format("%.1f", usage.processCpuTimeMs()) + " ms");
             System.out.println("  GC: " + usage.gcCount() + " colecciones, " + usage.gcTimeMs() + " ms");
             System.out.println("  CPUs disponibles: " + usage.availableProcessors());

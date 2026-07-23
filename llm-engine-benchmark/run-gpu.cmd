@@ -4,7 +4,7 @@ set TORNADO_SDK=C:\Users\yonom\AppData\Local\TornadoVM\tornadovm-5.0.0-jdk25-cud
 
 "C:\Program Files\Java\jdk-25.0.3\bin\java" ^
   -server -XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI ^
-  -Xms8g -Xmx8g ^
+  -Xms16g -Xmx16g ^
   --enable-preview ^
   -Djava.library.path=%TORNADO_SDK%/lib ^
   -Djdk.module.showModuleResolution=false ^
