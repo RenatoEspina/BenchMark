@@ -13,6 +13,7 @@ public record ResourceUsage(
         long heapUsedMb,
         long heapDeltaMb,
         double processCpuTimeMs,
+        double cpuPercent,
         long gcCount,
         long gcTimeMs,
         int availableProcessors,
@@ -102,6 +103,7 @@ public record ResourceUsage(
         private final long gcCountBefore;
         private final long gcTimeBefore;
         private final long rssBeforeKb;
+        private final long wallStartNanos;
 
         private Snapshot() {
             this.heapUsedBefore = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
@@ -115,6 +117,7 @@ public record ResourceUsage(
             this.gcCountBefore = count;
             this.gcTimeBefore = time;
             this.rssBeforeKb = rssAndPeakKb()[0];
+            this.wallStartNanos = System.nanoTime();
         }
 
         public ResourceUsage diff() {
@@ -133,10 +136,16 @@ public record ResourceUsage(
             long rssMb = rssAfterKb < 0 ? -1 : rssAfterKb / 1024;
             long rssDeltaMb = (rssBeforeKb < 0 || rssAfterKb < 0) ? -1 : (rssAfterKb - rssBeforeKb) / 1024;
             long rssPeakMb = peakKb < 0 ? -1 : peakKb / 1024;
+
+            double cpuTimeMs = (cpuTimeAfter - cpuTimeBefore) / 1_000_000.0;
+            double wallTimeMs = (System.nanoTime() - wallStartNanos) / 1_000_000.0;
+            double cpuPercent = wallTimeMs > 0 ? (cpuTimeMs / wallTimeMs) * 100.0 : 0.0;
+
             return new ResourceUsage(
                     heapUsedAfter / (1024 * 1024),
                     (heapUsedAfter - heapUsedBefore) / (1024 * 1024),
-                    (cpuTimeAfter - cpuTimeBefore) / 1_000_000.0,
+                    cpuTimeMs,
+                    cpuPercent,
                     gcCountAfter - gcCountBefore,
                     gcTimeAfter - gcTimeBefore,
                     Runtime.getRuntime().availableProcessors(),
