@@ -207,7 +207,7 @@ public final class Main {
             } else {
                 System.out.println("  RAM real (RSS): no disponible en este sistema operativo");
             }
-            System.out.println("  CPU proceso: " + String.format("%.1f", usage.processCpuTimeMs()) + " ms");
+            System.out.println("  CPU proceso: " + String.format("%.1f", usage.processCpuTimeMs()) + " ms (" + String.format("%.1f", usage.cpuPercent()) + "% CPU)");
             System.out.println("  GC: " + usage.gcCount() + " colecciones, " + usage.gcTimeMs() + " ms");
             System.out.println("  CPUs disponibles: " + usage.availableProcessors());
         }
