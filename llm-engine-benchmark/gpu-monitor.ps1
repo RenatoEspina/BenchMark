@@ -1,4 +1,3 @@
-# gpu-monitor.ps1
 param(
     [Parameter(Mandatory)][string]$Label,
     [Parameter(Mandatory)][string[]]$JavaArgs,
@@ -11,8 +10,7 @@ $gpuLog = Join-Path $outDir "$Label-gpu.csv"
 
 $job = Start-Job -ScriptBlock {
     param($path, $interval)
-    nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -l $interval |
-        Out-File -FilePath $path -Encoding utf8
+    cmd /c "nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -l $interval" | Out-File -FilePath $path -Encoding utf8
 } -ArgumentList $gpuLog, $IntervalSeconds
 
 Write-Host "Corriendo: java $($JavaArgs -join ' ')"

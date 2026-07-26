@@ -95,7 +95,6 @@ public final class Main {
         ModelSpec spec = new ModelSpec(engineType, modelRef, DEFAULT_WORK_DIR, null, maxTokens, temperature);
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
             System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
-            runner.ensureReady(spec);
             ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
             RunResult result = runner.run(spec, prompt);
             printResult(result.withResourceUsage(snapshot.diff()), inProcess(engineType));
@@ -173,7 +172,6 @@ public final class Main {
 
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
             System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
-            runner.ensureReady(spec);
             ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
             RunResult result = runner.run(spec, prompt);
             printResult(result.withResourceUsage(snapshot.diff()), inProcess(engineType));
