@@ -24,9 +24,9 @@ public final class VLlmEngineRunner implements EngineRunner {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient client = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
-
+        .version(HttpClient.Version.HTTP_1_1)
+        .connectTimeout(Duration.ofSeconds(10))
+        .build();
     private boolean ready;
 
     @Override
