@@ -44,13 +44,13 @@ public final class LlamaCppEngineRunner implements EngineRunner {
         List<String> command = buildCommand(spec, prompt);
 
         long generateStart = System.currentTimeMillis();
-        String responseText = executeProcess(command);
+        String rawOutput = executeProcess(command);
         long generateTimeMs = System.currentTimeMillis() - generateStart;
 
+        String responseText = extractResponse(rawOutput, prompt);
         int tokensGenerated = estimateTokens(responseText);
-        return RunResult.of(type(), spec.modelRef(), prompt, responseText.strip(), loadTimeMs, generateTimeMs, tokensGenerated);
+        return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, tokensGenerated);
     }
-
     private List<String> buildCommand(ModelSpec spec, String prompt) {
         String systemPrompt = spec.systemPrompt() != null ? spec.systemPrompt() : DEFAULT_SYSTEM_PROMPT;
         List<String> command = new ArrayList<>();
@@ -112,6 +112,26 @@ public final class LlamaCppEngineRunner implements EngineRunner {
         }
         return text.trim().split("\\s+").length;
     }
+
+    private String extractResponse(String rawOutput, String prompt) {
+    if (rawOutput == null) {
+        return "";
+    }
+    String text = rawOutput;
+
+    int promptIdx = text.lastIndexOf(prompt.trim());
+    if (promptIdx >= 0) {
+        text = text.substring(promptIdx + prompt.trim().length());
+    }
+
+    int exitingIdx = text.indexOf("Exiting...");
+    if (exitingIdx >= 0) {
+        text = text.substring(0, exitingIdx);
+    }
+
+    text = text.replaceAll("(?m)^>\\s*", "");
+    return text.trim();
+}
 
     @Override
     public void close() {
