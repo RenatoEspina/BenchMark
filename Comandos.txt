@@ -1,6 +1,7 @@
 Ruta modelo local: C:\Users\yonom\OneDrive\Escritorio\Investigacion\Modelos\Llama-3.2-1B-Instruct-F16.gguf (LLAMA3, GPULLAMA3 Y LLAMACPP)
 ruta modelo huggin JLAMA: tjake/Llama-3.2-1B-Instruct-JQ4
 Ruta modelo huggin: meta-llama/Llama-3.2-1B-Instruct
+
 -Jlama: 
 $proc = Start-Process java -ArgumentList "--add-modules","jdk.incubator.vector","-jar","benchmark-app\target\benchmark-app.jar","--engine=JLAMA","--model=tjake/Llama-3.2-1B-Instruct-JQ4" -PassThru -NoNewWindow
 Start-Sleep -Milliseconds 200
@@ -22,23 +23,24 @@ $proc.WaitForExit()
 
 -LLamacppCPU:
 1. .\run-llamacpp-server-cpu.cmd
-2. .\native-process-monitor.ps1 -ProcessName llama-server -Label llamacpp-cpu-run1
+2. .\server-request-monitor.ps1 -Label llamacpp-cpu-run1 -JavaArgs "-jar","benchmark-app\target\benchmark-app.jar","--engine=LLAMA_CPP","--model=Llama-3.2-1B-Instruct-F16.gguf","--prompt=Cual es la capital de Chile?"
 3. java -jar benchmark-app\target\benchmark-app.jar --engine=LLAMA_CPP --model=Llama-3.2-1B-Instruct-F16.gguf --prompt="Cual es la capital de Chile?"
 
 -LlamacppGPU:
 1. .\run-llamacpp-server-gpu.cmd
-2. .\native-process-monitor.ps1 -ProcessName llama-server -Label llamacpp-gpu-run1
+2. .\server-request-monitor.ps1 -Label llamacpp-cpu-run1 -JavaArgs "-jar","benchmark-app\target\benchmark-app.jar","--engine=LLAMA_CPP","--model=Llama-3.2-1B-Instruct-F16.gguf","--prompt=Cual es la capital de Chile?"
    nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -lms 200 | Out-File bench-logs\llamacpp-gpu-run1-gpu.csv
 3. java -jar benchmark-app\target\benchmark-app.jar --engine=LLAMA_CPP --model=Llama-3.2-1B-Instruct-F16.gguf --prompt="Cual es la capital de Chile?"
 4. .\gpu-avg-util.ps1 -CsvPath .\bench-logs\llamacpp-gpu-run1-gpu.csv
 
 -Ollama
-1.  .\set-pcore-affinity.ps1 -ProcessName "ollama*"
-    .\native-process-monitor.ps1 -ProcessName ollama -Label ollama-run1
-2.  nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -lms 200 | Out-File bench-logs\ollama-run1-gpu.csv
-3.  java -jar benchmark-app\target\benchmark-app.jar --engine=OLLAMA --model=llama3.2:1b
+1.  1. .\set-pcore-affinity.ps1 -ProcessName "ollama*"
+2. .\server-request-monitor.ps1 -Label ollama-run1 -ServerProcessName ollama -JavaArgs "-jar","benchmark-app\target\benchmark-app.jar","--engine=OLLAMA","--model=llama3.2:1b","--prompt=Cual es la capital de Chile?"
+3.  nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -lms 200 | Out-File bench-logs\ollama-run1-gpu.csv
+4.  java -jar benchmark-app\target\benchmark-app.jar --engine=OLLAMA --model=llama3.2:1b
+
 -vllm
-1. docker run --gpus all -p 8000:8000 --cpuset-cpus="0-11" vllm/vllm-openai:v0.8.5 --model Qwen/Qwen2.5-0.5B-Instruct --gpu-memory-utilization 0.70 --max-model-len 2048 --enforce-eager
+1. docker run --gpus all -p 8000:8000 --cpuset-cpus="0-11" -e HUGGING_FACE_HUB_TOKEN=$env:HF_TOKEN vllm/vllm-openai:v0.8.5 --model meta-llama/Llama-3.2-1B-Instruct --gpu-memory-utilization 0.70 --max-model-len 2048 --enforce-eager
 2. docker ps
    .\docker-monitor.ps1 -Container <container_id> -Label vllm-run1
-3. java -jar benchmark-app\target\benchmark-app.jar --engine=VLLM --model=Qwen/Qwen2.5-0.5B-Instruct
+3. java -jar benchmark-app\target\benchmark-app.jar --engine=VLLM --model=meta-llama/Llama-3.2-1B-Instruct
