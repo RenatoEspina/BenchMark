@@ -2,25 +2,31 @@ package com.benchmark.engine.llamacpp;
 
 import com.benchmark.core.EngineRunner;
 import com.benchmark.core.EngineType;
-import com.benchmark.core.ModelResolver;
 import com.benchmark.core.ModelSpec;
 import com.benchmark.core.RunResult;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.Duration;
 
 public final class LlamaCppEngineRunner implements EngineRunner {
 
     private static final String DEFAULT_SYSTEM_PROMPT = "Eres un asistente conciso.";
-    private static final String BINARY = System.getProperty("llamacpp.binary", "llama-cli");
-    private static final int DEFAULT_CTX_SIZE = Integer.getInteger("llamacpp.ctxSize", 4096);
-    private static final int DEFAULT_N_GPU_LAYERS = Integer.getInteger("llamacpp.nGpuLayers", 0);
+    private static final String HOST = System.getProperty("llamacpp.host", "http://localhost:8080");
 
-    private Path modelPath;
+    private final ObjectMapper mapper = new ObjectMapper();
+    private final HttpClient client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
+
+    private boolean ready;
 
     @Override
     public EngineType type() {
@@ -29,10 +35,27 @@ public final class LlamaCppEngineRunner implements EngineRunner {
 
     @Override
     public void ensureReady(ModelSpec spec) throws Exception {
-        if (modelPath != null) {
+        if (ready) {
             return;
         }
-        modelPath = ModelResolver.resolve(spec.modelRef(), spec.workDir());
+        if (!serverUp()) {
+            throw new IllegalStateException("No se pudo conectar a llama-server en " + HOST
+                    + ". Inicialo con run-llamacpp-server-cpu.cmd o run-llamacpp-server-gpu.cmd antes de correr el benchmark.");
+        }
+        ready = true;
+    }
+
+    private boolean serverUp() {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(HOST + "/health"))
+                    .timeout(Duration.ofSeconds(5))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            return response.statusCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override
@@ -41,69 +64,38 @@ public final class LlamaCppEngineRunner implements EngineRunner {
         ensureReady(spec);
         long loadTimeMs = System.currentTimeMillis() - loadStart;
 
-        List<String> command = buildCommand(spec, prompt);
+        ObjectNode requestBody = mapper.createObjectNode();
+        requestBody.put("model", spec.modelRef());
+        requestBody.put("temperature", spec.temperature());
+        requestBody.put("max_tokens", spec.maxTokens());
+
+        ArrayNode messages = requestBody.putArray("messages");
+        ObjectNode systemMessage = messages.addObject();
+        systemMessage.put("role", "system");
+        systemMessage.put("content", spec.systemPrompt() != null ? spec.systemPrompt() : DEFAULT_SYSTEM_PROMPT);
+        ObjectNode userMessage = messages.addObject();
+        userMessage.put("role", "user");
+        userMessage.put("content", prompt);
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(HOST + "/v1/chat/completions"))
+                .timeout(Duration.ofMinutes(10))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
+                .build();
 
         long generateStart = System.currentTimeMillis();
-        String responseText = executeProcess(command);
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         long generateTimeMs = System.currentTimeMillis() - generateStart;
 
-        int tokensGenerated = estimateTokens(responseText);
-        return RunResult.of(type(), spec.modelRef(), prompt, responseText.strip(), loadTimeMs, generateTimeMs, tokensGenerated);
-    }
-
-    private List<String> buildCommand(ModelSpec spec, String prompt) {
-        String systemPrompt = spec.systemPrompt() != null ? spec.systemPrompt() : DEFAULT_SYSTEM_PROMPT;
-        List<String> command = new ArrayList<>();
-        command.add(BINARY);
-        command.add("-m");
-        command.add(modelPath.toString());
-        command.add("-sys");
-        command.add(systemPrompt);
-        command.add("-p");
-        command.add(prompt);
-        command.add("-cnv");
-        command.add("-st");
-        command.add("-n");
-        command.add(String.valueOf(spec.maxTokens()));
-        command.add("--temp");
-        command.add(String.valueOf(spec.temperature()));
-        command.add("-c");
-        command.add(String.valueOf(DEFAULT_CTX_SIZE));
-        if (DEFAULT_N_GPU_LAYERS > 0) {
-            command.add("-ngl");
-            command.add(String.valueOf(DEFAULT_N_GPU_LAYERS));
-        }
-        command.add("--no-display-prompt");
-        command.add("--simple-io");
-        command.add("--no-warmup");
-        command.add("--no-perf");
-        command.add("--no-show-timings");
-        return command;
-    }
-
-    private String executeProcess(List<String> command) throws IOException, InterruptedException {
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
-        Process process = processBuilder.start();
-
-        Thread stderrDrain = new Thread(() -> {
-            try (InputStream err = process.getErrorStream()) {
-                err.readAllBytes();
-            } catch (IOException ignored) {
-            }
-        });
-        stderrDrain.setDaemon(true);
-        stderrDrain.start();
-
-        String responseText;
-        try (InputStream out = process.getInputStream()) {
-            responseText = new String(out.readAllBytes(), StandardCharsets.UTF_8);
+        if (response.statusCode() / 100 != 2) {
+            throw new IllegalStateException("llama-server respondio con codigo " + response.statusCode() + ": " + response.body());
         }
 
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            throw new IllegalStateException(BINARY + " finalizo con codigo " + exitCode);
-        }
-        return responseText;
+        JsonNode json = mapper.readTree(response.body());
+        String responseText = json.path("choices").path(0).path("message").path("content").asText("");
+        int tokensGenerated = json.path("usage").path("completion_tokens").asInt(estimateTokens(responseText));
+
+        return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, tokensGenerated);
     }
 
     private int estimateTokens(String text) {
@@ -115,6 +107,6 @@ public final class LlamaCppEngineRunner implements EngineRunner {
 
     @Override
     public void close() {
-        modelPath = null;
+        ready = false;
     }
 }

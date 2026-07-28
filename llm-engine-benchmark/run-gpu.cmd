@@ -2,8 +2,10 @@
 setlocal
 chcp 65001 >nul
 set TORNADO_SDK=C:\Users\yonom\AppData\Local\TornadoVM\tornadovm-5.0.0-jdk25-cuda
+set "JAVA_EXE=%JAVA_HOME%\bin\java.exe"
+if not exist "%JAVA_EXE%" set "JAVA_EXE=java"
 
-"C:\Program Files\Java\jdk-25.0.3\bin\java" ^
+"%JAVA_EXE%" ^
   -server -XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI ^
   -Xms16g -Xmx16g ^
   --enable-preview ^

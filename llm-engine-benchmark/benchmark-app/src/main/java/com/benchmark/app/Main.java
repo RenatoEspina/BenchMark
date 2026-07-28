@@ -95,7 +95,6 @@ public final class Main {
         ModelSpec spec = new ModelSpec(engineType, modelRef, DEFAULT_WORK_DIR, null, maxTokens, temperature);
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
             System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
-            runner.ensureReady(spec);
             ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
             RunResult result = runner.run(spec, prompt);
             printResult(result.withResourceUsage(snapshot.diff()), inProcess(engineType));
@@ -173,7 +172,6 @@ public final class Main {
 
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
             System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
-            runner.ensureReady(spec);
             ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
             RunResult result = runner.run(spec, prompt);
             printResult(result.withResourceUsage(snapshot.diff()), inProcess(engineType));
@@ -207,7 +205,7 @@ public final class Main {
             } else {
                 System.out.println("  RAM real (RSS): no disponible en este sistema operativo");
             }
-            System.out.println("  CPU proceso: " + String.format("%.1f", usage.processCpuTimeMs()) + " ms");
+            System.out.println("  CPU proceso: " + String.format("%.1f", usage.processCpuTimeMs()) + " ms (" + String.format("%.1f", usage.cpuPercent()) + "% CPU)");
             System.out.println("  GC: " + usage.gcCount() + " colecciones, " + usage.gcTimeMs() + " ms");
             System.out.println("  CPUs disponibles: " + usage.availableProcessors());
         }
