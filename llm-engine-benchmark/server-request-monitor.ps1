@@ -1,7 +1,8 @@
-llamacpp-server-monitor.ps1param(
+param(
     [Parameter(Mandatory)][string]$Label,
     [Parameter(Mandatory)][string[]]$JavaArgs,
-    [string]$ServerProcessName = "llama-server"
+    [string]$ServerProcessName = "llama-server",
+    [int]$IntervalMs = 50
 )
 
 $outDir = "bench-logs"
@@ -13,48 +14,42 @@ if (-not $serverProc) {
     return
 }
 
-$monitorJob = Start-Job -ScriptBlock {
-    param($procId, $intervalMs)
-    $samples = @()
-    $prevCpu = $null
-    $prevWall = $null
-    while ($true) {
-        try {
-            $p = Get-Process -Id $procId -ErrorAction Stop
-        } catch {
-            break
-        }
-        $nowWall = Get-Date
-        if ($prevCpu -ne $null) {
-            $deltaCpuMs = ($p.TotalProcessorTime - $prevCpu).TotalMilliseconds
-            $deltaWallMs = ($nowWall - $prevWall).TotalMilliseconds
-            $cpuPercent = if ($deltaWallMs -gt 0) { [math]::Round(($deltaCpuMs / $deltaWallMs) * 100, 1) } else { 0 }
-            $ws = [math]::Round($p.WorkingSet64 / 1MB, 1)
-            $samples += [PSCustomObject]@{ CpuPercent = $cpuPercent; WorkingSetMb = $ws }
-        }
-        $prevCpu = $p.TotalProcessorTime
-        $prevWall = $nowWall
-        Start-Sleep -Milliseconds $intervalMs
-    }
-    return $samples
-} -ArgumentList $serverProc.Id, 100
+$samples = New-Object System.Collections.Generic.List[object]
+$prevCpu = $null
+$prevWall = $null
 
 Write-Host "Ejecutando: java $($JavaArgs -join ' ')"
+$javaProc = Start-Process java -ArgumentList $JavaArgs -PassThru -NoNewWindow
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
-& java @JavaArgs
+
+while (-not $javaProc.HasExited) {
+    try {
+        $serverProc.Refresh()
+    } catch {
+        break
+    }
+    $nowWall = Get-Date
+    if ($prevCpu -ne $null) {
+        $deltaCpuMs = ($serverProc.TotalProcessorTime - $prevCpu).TotalMilliseconds
+        $deltaWallMs = ($nowWall - $prevWall).TotalMilliseconds
+        $cpuPercent = if ($deltaWallMs -gt 0) { [math]::Round(($deltaCpuMs / $deltaWallMs) * 100, 1) } else { 0 }
+        $ws = [math]::Round($serverProc.WorkingSet64 / 1MB, 1)
+        $samples.Add([PSCustomObject]@{ CpuPercent = $cpuPercent; WorkingSetMb = $ws })
+    }
+    $prevCpu = $serverProc.TotalProcessorTime
+    $prevWall = $nowWall
+    Start-Sleep -Milliseconds $IntervalMs
+}
 $sw.Stop()
+$javaProc.WaitForExit()
 
-Stop-Job $monitorJob | Out-Null
-$samples = Receive-Job $monitorJob
-Remove-Job $monitorJob -Force | Out-Null
-
-if ($samples -and $samples.Count -gt 0) {
+if ($samples.Count -gt 0) {
     $avgCpu = [math]::Round(($samples | Measure-Object -Property CpuPercent -Average).Average, 1)
     $peakCpu = ($samples | Measure-Object -Property CpuPercent -Maximum).Maximum
     $peakWs = ($samples | Measure-Object -Property WorkingSetMb -Maximum).Maximum
 
     Write-Host ""
-    Write-Host "=== Resumen llama-server (durante esta request) ==="
+    Write-Host "=== Resumen $ServerProcessName (durante esta request) ==="
     Write-Host "Duracion wall (cliente): $([math]::Round($sw.Elapsed.TotalMilliseconds,1)) ms"
     Write-Host "CPU% promedio: $avgCpu %"
     Write-Host "CPU% pico: $peakCpu %"
@@ -64,5 +59,5 @@ if ($samples -and $samples.Count -gt 0) {
     $samples | Export-Csv -Path $log -NoTypeInformation
     Write-Host "Log completo en: $log"
 } else {
-    Write-Host "No se pudieron tomar muestras del proceso llama-server."
+    Write-Host "No se pudieron tomar muestras del proceso $ServerProcessName (la request fue mas rapida que el intervalo de muestreo)."
 }
