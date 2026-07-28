@@ -19,7 +19,10 @@ $prevCpu = $null
 $prevWall = $null
 
 Write-Host "Ejecutando: java $($JavaArgs -join ' ')"
-$javaProc = Start-Process java -ArgumentList $JavaArgs -PassThru -NoNewWindow
+$quotedArgs = $JavaArgs | ForEach-Object {
+    if ($_ -match '\s') { '"' + $_ + '"' } else { $_ }
+}
+$javaProc = Start-Process java -ArgumentList $quotedArgs -PassThru -NoNewWindow
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
 while (-not $javaProc.HasExited) {
