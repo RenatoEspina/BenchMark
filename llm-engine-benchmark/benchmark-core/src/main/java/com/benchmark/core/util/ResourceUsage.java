@@ -8,6 +8,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public record ResourceUsage(
         long heapUsedMb,
@@ -19,7 +22,10 @@ public record ResourceUsage(
         int availableProcessors,
         long rssMb,
         long rssDeltaMb,
-        long rssPeakMb
+        long rssPeakMb,
+        double cpuPercentAvgGeneration,
+        double cpuPercentPeakGeneration,
+        int generationSampleCount
 ) {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("win");
 
@@ -97,6 +103,72 @@ public record ResourceUsage(
         return unixPsRssPeakKb();
     }
 
+    public record GenerationCpuStats(double cpuPercentAvg, double cpuPercentPeak, int sampleCount) {
+        public static final GenerationCpuStats EMPTY = new GenerationCpuStats(0.0, 0.0, 0);
+    }
+
+    public static final class CpuSampler {
+        private final Thread thread;
+        private final List<double[]> samples = Collections.synchronizedList(new ArrayList<>());
+        private volatile boolean running = true;
+
+        private CpuSampler(long intervalMs) {
+            this.thread = new Thread(() -> sampleLoop(intervalMs), "resource-usage-cpu-sampler");
+            this.thread.setDaemon(true);
+        }
+
+        public static CpuSampler start(long intervalMs) {
+            CpuSampler sampler = new CpuSampler(intervalMs);
+            sampler.thread.start();
+            return sampler;
+        }
+
+        private void sampleLoop(long intervalMs) {
+            OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+            long prevCpu = osBean.getProcessCpuTime();
+            long prevWallNanos = System.nanoTime();
+            while (running) {
+                try {
+                    Thread.sleep(intervalMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                long nowCpu = osBean.getProcessCpuTime();
+                long nowWallNanos = System.nanoTime();
+                long deltaCpuNanos = nowCpu - prevCpu;
+                long deltaWallNanos = nowWallNanos - prevWallNanos;
+                double cpuPercent = deltaWallNanos > 0 ? (deltaCpuNanos * 100.0) / deltaWallNanos : 0.0;
+                samples.add(new double[] { nowWallNanos, cpuPercent });
+                prevCpu = nowCpu;
+                prevWallNanos = nowWallNanos;
+            }
+        }
+
+        public GenerationCpuStats stopAndSummarize(long generationStartNanos) {
+            running = false;
+            try {
+                thread.join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            List<Double> genSamples = new ArrayList<>();
+            synchronized (samples) {
+                for (double[] s : samples) {
+                    if (s[0] >= generationStartNanos) {
+                        genSamples.add(s[1]);
+                    }
+                }
+            }
+            if (genSamples.isEmpty()) {
+                return GenerationCpuStats.EMPTY;
+            }
+            double avg = genSamples.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            double peak = genSamples.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+            return new GenerationCpuStats(avg, peak, genSamples.size());
+        }
+    }
+
     public static final class Snapshot {
         private final long heapUsedBefore;
         private final long cpuTimeBefore;
@@ -120,7 +192,7 @@ public record ResourceUsage(
             this.wallStartNanos = System.nanoTime();
         }
 
-        public ResourceUsage diff() {
+        public ResourceUsage diff(GenerationCpuStats generationCpuStats) {
             MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
             long heapUsedAfter = memoryMXBean.getHeapMemoryUsage().getUsed();
             long cpuTimeAfter = ((OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getProcessCpuTime();
@@ -151,8 +223,15 @@ public record ResourceUsage(
                     Runtime.getRuntime().availableProcessors(),
                     rssMb,
                     rssDeltaMb,
-                    rssPeakMb
+                    rssPeakMb,
+                    generationCpuStats.cpuPercentAvg(),
+                    generationCpuStats.cpuPercentPeak(),
+                    generationCpuStats.sampleCount()
             );
+        }
+
+        public long wallStartNanos() {
+            return wallStartNanos;
         }
     }
 }

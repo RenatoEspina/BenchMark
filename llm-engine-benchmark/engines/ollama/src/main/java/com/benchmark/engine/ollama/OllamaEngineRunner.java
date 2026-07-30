@@ -46,9 +46,7 @@ public final class OllamaEngineRunner implements EngineRunner {
 
     @Override
     public RunResult run(ModelSpec spec, String prompt) throws Exception {
-        long loadStart = System.currentTimeMillis();
         ensureReady(spec);
-        long loadTimeMs = System.currentTimeMillis() - loadStart;
 
         ObjectNode requestBody = mapper.createObjectNode();
         requestBody.put("model", spec.modelRef());
@@ -61,14 +59,12 @@ public final class OllamaEngineRunner implements EngineRunner {
         options.put("num_predict", spec.maxTokens());
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(HOST + "/api/generate"))
-                .timeout(Duration.ofMinutes(10))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
-                .build();
+            .timeout(Duration.ofMinutes(10))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
+            .build();
 
-        long generateStart = System.currentTimeMillis();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        long generateTimeMs = System.currentTimeMillis() - generateStart;
 
         if (response.statusCode() / 100 != 2) {
             throw new IllegalStateException("Ollama respondio con codigo " + response.statusCode() + ": " + response.body());
@@ -77,6 +73,9 @@ public final class OllamaEngineRunner implements EngineRunner {
         JsonNode json = mapper.readTree(response.body());
         String responseText = json.path("response").asText("");
         int tokensGenerated = json.path("eval_count").asInt(estimateTokens(responseText));
+
+        long loadTimeMs = json.path("load_duration").asLong(0) / 1_000_000;
+        long generateTimeMs = json.path("eval_duration").asLong(0) / 1_000_000;
 
         return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, tokensGenerated);
     }

@@ -96,9 +96,13 @@ public final class Main {
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
             System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
             ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
+            ResourceUsage.CpuSampler sampler = ResourceUsage.CpuSampler.start(50);
+            long overallStartNanos = System.nanoTime();
             RunResult result = runner.run(spec, prompt);
-            printResult(result.withResourceUsage(snapshot.diff()), inProcess(engineType));
-        } catch (Exception e) {
+            long generationStartNanos = overallStartNanos + result.loadTimeMs() * 1_000_000L;
+            ResourceUsage.GenerationCpuStats genStats = sampler.stopAndSummarize(generationStartNanos);
+            printResult(result.withResourceUsage(snapshot.diff(genStats)), inProcess(engineType));  
+        } catch (Exception e) {{
             System.out.println("Error ejecutando el benchmark: " + e.getMessage());
         }
     }
@@ -173,8 +177,12 @@ public final class Main {
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
             System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
             ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
+            ResourceUsage.CpuSampler sampler = ResourceUsage.CpuSampler.start(50);
+            long overallStartNanos = System.nanoTime();
             RunResult result = runner.run(spec, prompt);
-            printResult(result.withResourceUsage(snapshot.diff()), inProcess(engineType));
+            long generationStartNanos = overallStartNanos + result.loadTimeMs() * 1_000_000L;
+            ResourceUsage.GenerationCpuStats genStats = sampler.stopAndSummarize(generationStartNanos);
+            printResult(result.withResourceUsage(snapshot.diff(genStats)), inProcess(engineType));
         }
     }
 
@@ -205,7 +213,15 @@ public final class Main {
             } else {
                 System.out.println("  RAM real (RSS): no disponible en este sistema operativo");
             }
-            System.out.println("  CPU proceso: " + String.format("%.1f", usage.processCpuTimeMs()) + " ms (" + String.format("%.1f", usage.cpuPercent()) + "% CPU)");
+            System.out.println("  CPU proceso (carga+generacion): " + String.format("%.1f", usage.processCpuTimeMs()) + " ms (" + String.format("%.1f", usage.cpuPercent()) + "% CPU)");
+            if (inProcess) {
+                if (usage.generationSampleCount() > 0) {
+                    System.out.println("  CPU% promedio (generacion): " + String.format("%.1f", usage.cpuPercentAvgGeneration()) + " %");
+                    System.out.println("  CPU% pico (generacion): " + String.format("%.1f", usage.cpuPercentPeakGeneration()) + " %");
+                } else {
+                System.out.println("  CPU% generacion: sin muestras (generacion demasiado corta)");
+                }
+            }   
             System.out.println("  GC: " + usage.gcCount() + " colecciones, " + usage.gcTimeMs() + " ms");
             System.out.println("  CPUs disponibles: " + usage.availableProcessors());
         }
