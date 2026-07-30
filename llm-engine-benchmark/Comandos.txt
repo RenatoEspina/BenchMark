@@ -39,12 +39,14 @@ $proc.WaitForExit()
 1.  .\set-pcore-affinity.ps1 -ProcessName "ollama*"
 2.  nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -lms 200 | Out-File bench-logs\ollama-run1-gpu.csv
 3. .\server-request-monitor.ps1 -Label ollama-run1 -ServerProcessName ollama -JavaArgs "-jar","benchmark-app\target\benchmark-app.jar","--engine=OLLAMA","--model=llama3.2:1b","--prompt=Cual es la capital de Chile?"
+4.  .\gpu-avg-util.ps1 -CsvPath .\bench-logs\ollama-run1-gpu.csv
 
 -vllm
 1. .\server-startup-timer.ps1 -Label vllm -HealthUrl http://localhost:8000/health -Command docker -CommandArgs "run","--gpus","all","-p","8000:8000","--cpuset-cpus=0-11","-e","HUGGING_FACE_HUB_TOKEN=$env:HF_TOKEN","vllm/vllm-openai:v0.8.5","--model","meta-llama/Llama-3.2-1B-Instruct","--gpu-memory-utilization","0.70","--max-model-len","2048","--enforce-eager"
    (dejar corriendo; anotar "Tiempo hasta health check OK" como Cargar Modelo)
 2. (otra terminal) docker ps
-   .\docker-monitor.ps1 -Container <container_id> -Label vllm-run1
-3. (otra terminal) java -jar benchmark-app\target\benchmark-app.jar --engine=VLLM --model=meta-llama/Llama-3.2-1B-Instruct --prompt="Cual es la capital de Chile?"
-4. Ctrl+C en la terminal del paso 2, luego: .\docker-stats-avg-peak.ps1 -CsvPath .\bench-logs\vllm-run1-docker.csv
-5. Ctrl+C en la terminal del paso 1 para bajar el contenedor
+   .\docker-monitor.ps1 -Container  -Label vllm-run1
+3. nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -lms 200 | Out-File bench-logs\vllm-run1.csv
+4. (otra terminal) java -jar benchmark-app\target\benchmark-app.jar --engine=VLLM --model=meta-llama/Llama-3.2-1B-Instruct --prompt="Cual es la capital de Chile?"
+5. Ctrl+C en la terminal del paso 2, luego: .\docker-stats-avg-peak.ps1 -CsvPath .\bench-logs\vllm-run1-docker.csv
+6. Ctrl+C en la terminal del paso 1 para bajar el contenedor y .\gpu-avg-util.ps1 -CsvPath .\bench-logs\vllm-run1.csv
