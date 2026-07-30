@@ -47,14 +47,28 @@ $sw.Stop()
 $javaProc.WaitForExit()
 
 if ($samples.Count -gt 0) {
-    $avgCpu = [math]::Round(($samples | Measure-Object -Property CpuPercent -Average).Average, 1)
-    $peakCpu = ($samples | Measure-Object -Property CpuPercent -Maximum).Maximum
+
+    # Solo considerar muestras donde el proceso realmente uso CPU
+    $cpuSamples = $samples | Where-Object { $_.CpuPercent -gt 0 }
+
+    if ($cpuSamples.Count -gt 0) {
+        $avgCpu = [math]::Round(
+            ($cpuSamples | Measure-Object -Property CpuPercent -Average).Average,
+            1
+        )
+
+        $peakCpu = ($cpuSamples | Measure-Object -Property CpuPercent -Maximum).Maximum
+    } else {
+        $avgCpu = 0
+        $peakCpu = 0
+    }
+
     $peakWs = ($samples | Measure-Object -Property WorkingSetMb -Maximum).Maximum
 
     Write-Host ""
     Write-Host "=== Resumen $ServerProcessName (durante esta request) ==="
     Write-Host "Duracion wall (cliente): $([math]::Round($sw.Elapsed.TotalMilliseconds,1)) ms"
-    Write-Host "CPU% promedio: $avgCpu %"
+    Write-Host "CPU% promedio (solo muestras > 0%): $avgCpu %"
     Write-Host "CPU% pico: $peakCpu %"
     Write-Host "Pico RAM (workingset): $peakWs MB"
 

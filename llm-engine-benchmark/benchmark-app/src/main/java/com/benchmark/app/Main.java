@@ -102,7 +102,7 @@ public final class Main {
             long generationStartNanos = overallStartNanos + result.loadTimeMs() * 1_000_000L;
             ResourceUsage.GenerationCpuStats genStats = sampler.stopAndSummarize(generationStartNanos);
             printResult(result.withResourceUsage(snapshot.diff(genStats)), inProcess(engineType));  
-        } catch (Exception e) {{
+        } catch (Exception e) {
             System.out.println("Error ejecutando el benchmark: " + e.getMessage());
         }
     }
