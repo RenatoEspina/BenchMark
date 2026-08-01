@@ -183,13 +183,13 @@ public final class Main {
         String modelRef = options.getOrDefault("model", "tjake/Llama-3.2-1B-Instruct-JQ4");
         String prompt = options.getOrDefault("prompt", "Cual es la capital de Chile?");
         Path workDir = Path.of(options.getOrDefault("workdir", DEFAULT_WORK_DIR.toString()));
-        int maxTokens = Integer.parseInt(options.getOrDefault("max-tokens", "256"));
-        float temperature = Float.parseFloat(options.getOrDefault("temperature", "0.0"));
+        int maxTokens = readInt(options.getOrDefault("max-tokens", ""), 256);
+        float temperature = readFloat(options.getOrDefault("temperature", ""), 0.0f);
 
         boolean ragEnabled = Boolean.parseBoolean(options.getOrDefault("rag", "false"));
-        int ragTopK = Integer.parseInt(options.getOrDefault("rag-topk", "3"));
-        int ragChunkSize = Integer.parseInt(options.getOrDefault("rag-chunk-size", "500"));
-        int ragChunkOverlap = Integer.parseInt(options.getOrDefault("rag-chunk-overlap", "50"));
+        int ragTopK = readInt(options.getOrDefault("rag-topk", ""), 3);
+        int ragChunkSize = readInt(options.getOrDefault("rag-chunk-size", ""), 500);
+        int ragChunkOverlap = readInt(options.getOrDefault("rag-chunk-overlap", ""), 50);
 
         ModelSpec spec = new ModelSpec(engineType, modelRef, workDir, options.get("system-prompt"), maxTokens, temperature);
 
