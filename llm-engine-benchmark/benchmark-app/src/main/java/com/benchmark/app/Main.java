@@ -14,10 +14,23 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 
 public final class Main {
 
     private static final Path DEFAULT_WORK_DIR = Path.of("./models");
+    
+    private static final Set<String> KNOWN_OPTION_KEYS = Set.of(
+        "engine", "model", "prompt", "workdir", "max-tokens", "temperature", "system-prompt",
+        "rag", "rag-corpus", "rag-topk", "rag-chunk-size", "rag-chunk-overlap");
+
+    private static void applyExtraSystemProperties(Map<String, String> options) {
+        for (Map.Entry<String, String> entry : options.entrySet()) {
+            if (!KNOWN_OPTION_KEYS.contains(entry.getKey())) {
+                System.setProperty(entry.getKey(), entry.getValue());
+            }
+        }
+    }
 
     public static void main(String[] args) throws Exception {
         if (args.length > 0) {
@@ -164,6 +177,7 @@ public final class Main {
 
     private static void runFromArgs(String[] args) throws Exception {
         Map<String, String> options = parseArgs(args);
+        applyExtraSystemProperties(options);
 
         EngineType engineType = EngineType.valueOf(options.getOrDefault("engine", "JLAMA").toUpperCase());
         String modelRef = options.getOrDefault("model", "tjake/Llama-3.2-1B-Instruct-JQ4");
@@ -172,17 +186,41 @@ public final class Main {
         int maxTokens = Integer.parseInt(options.getOrDefault("max-tokens", "256"));
         float temperature = Float.parseFloat(options.getOrDefault("temperature", "0.0"));
 
+        boolean ragEnabled = Boolean.parseBoolean(options.getOrDefault("rag", "false"));
+        int ragTopK = Integer.parseInt(options.getOrDefault("rag-topk", "3"));
+        int ragChunkSize = Integer.parseInt(options.getOrDefault("rag-chunk-size", "500"));
+        int ragChunkOverlap = Integer.parseInt(options.getOrDefault("rag-chunk-overlap", "50"));
+
         ModelSpec spec = new ModelSpec(engineType, modelRef, workDir, options.get("system-prompt"), maxTokens, temperature);
+
+        String effectivePrompt = prompt;
+        long retrievalTimeMs = -1;
+        int chunksRetrieved = 0;
+        if (ragEnabled) {
+            String ragCorpus = options.get("rag-corpus");
+            if (ragCorpus == null || ragCorpus.isBlank()) {
+                System.out.println("--rag=true requiere --rag-corpus=<directorio>");
+                return;
+            }
+            long ragStart = System.currentTimeMillis();
+            var corpusChunks = com.benchmark.core.rag.RagCorpus.load(Path.of(ragCorpus), ragChunkSize, ragChunkOverlap);
+            var retriever = new com.benchmark.core.rag.RagRetriever(corpusChunks);
+            var retrieved = retriever.retrieve(prompt, ragTopK);
+            effectivePrompt = com.benchmark.core.rag.RagPromptBuilder.build(prompt, retrieved);
+            retrievalTimeMs = System.currentTimeMillis() - ragStart;
+            chunksRetrieved = retrieved.size();
+        }
 
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
             System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
             ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
             ResourceUsage.CpuSampler sampler = ResourceUsage.CpuSampler.start(50);
             long overallStartNanos = System.nanoTime();
-            RunResult result = runner.run(spec, prompt);
+            RunResult result = runner.run(spec, effectivePrompt);
             long generationStartNanos = overallStartNanos + result.loadTimeMs() * 1_000_000L;
             ResourceUsage.GenerationCpuStats genStats = sampler.stopAndSummarize(generationStartNanos);
-            printResult(result.withResourceUsage(snapshot.diff(genStats)), inProcess(engineType));
+            RunResult withRag = result.withRagInfo(retrievalTimeMs, chunksRetrieved);
+            printResult(withRag.withResourceUsage(snapshot.diff(genStats)), inProcess(engineType));
         }
     }
 
