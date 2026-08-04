@@ -55,7 +55,6 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
         ChatResponse response = model.chat(request);
         long generateTimeMs = System.currentTimeMillis() - generateStart;
 
-        String responseText = response.aiMessage().text();
         int tokensGenerated = extractTokenCount(response, responseText);
         return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, tokensGenerated);
     }

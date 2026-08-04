@@ -51,7 +51,7 @@ public final class JlamaEngineRunner implements EngineRunner {
                 .generate();
         long generateTimeMs = System.currentTimeMillis() - generateStart;
 
-        int tokensGenerated = estimateTokens(response.responseText);
+        int tokensGenerated = response.generatedTokens > 0 ? response.generatedTokens : estimateTokens(response.responseText);
         return RunResult.of(type(), spec.modelRef(), ctx.getPrompt(), response.responseText, loadTimeMs, generateTimeMs, tokensGenerated);
     }
 

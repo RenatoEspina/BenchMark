@@ -38,6 +38,8 @@ if not exist "%JAVA_EXE%" set "JAVA_EXE=java"
   --add-modules ALL-SYSTEM,jdk.incubator.vector,tornado.runtime,tornado.annotation,tornado.drivers.common,tornado.drivers.cuda ^
   --enable-native-access=tornado.drivers.cuda ^
   -Dgpullama3.onGPU=true ^
-  -jar benchmark-app\target\benchmark-app.jar
+  -jar benchmark-app\target\benchmark-app.jar ^
+  --engine=GPULLAMA3_JAVA ^
+  %*
 
 endlocal
