@@ -22,8 +22,7 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
     private static final int HARD_CONTEXT_LIMIT = 8192;
     
     private GPULlama3ChatModel model;
-    private int requestedMaxTokens; // Guardar el maxTokens solicitado
-
+    private int requestedMaxTokens; 
     @Override
     public EngineType type() {
         return EngineType.GPULLAMA3_JAVA;
@@ -35,13 +34,11 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
             return;
         }
         Path ggufPath = ModelResolver.resolve(spec.modelRef(), spec.workDir());
-        requestedMaxTokens = spec.maxTokens(); // Guardar para usar después
-        
-        // El modelo se inicializa con el contexto completo, no con maxTokens
+        requestedMaxTokens = spec.maxTokens(); 
         model = GPULlama3ChatModel.builder()
                 .modelPath(ggufPath)
                 .temperature((double) spec.temperature())
-                .maxTokens(HARD_CONTEXT_LIMIT) // Contexto completo del modelo
+                .maxTokens(HARD_CONTEXT_LIMIT) 
                 .onGPU(DEFAULT_ON_GPU)
                 .build();
     }
@@ -54,7 +51,6 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
 
         String systemPrompt = spec.systemPrompt() != null ? spec.systemPrompt() : DEFAULT_SYSTEM_PROMPT;
         
-        // ChatRequest NO acepta maxTokens - solo mensajes y parámetros de request
         ChatRequest request = ChatRequest.builder()
                 .messages(SystemMessage.from(systemPrompt), UserMessage.from(prompt))
                 .build();
@@ -65,7 +61,6 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
 
         String responseText = response.aiMessage().text();
         
-        // Limitar la respuesta a los tokens solicitados si es necesario
         if (spec.maxTokens() > 0) {
             responseText = truncateResponseToMaxTokens(responseText, spec.maxTokens());
         }
@@ -74,10 +69,7 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
         return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, tokensGenerated);
     }
     
-    // Método para truncar la respuesta si excede los tokens máximos solicitados
     private String truncateResponseToMaxTokens(String responseText, int maxTokens) {
-        // Si el modelo ya reporta el conteo de tokens, lo usamos
-        // Si no, hacemos una estimación y truncamos por palabras
         String[] words = responseText.split("\\s+");
         int estimatedTokens = (int) Math.ceil(words.length * 1.5);
         
@@ -85,7 +77,6 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
             return responseText;
         }
         
-        // Truncar aproximadamente al número de palabras correspondiente
         int maxWords = (int) Math.floor(maxTokens / 1.5);
         StringBuilder truncated = new StringBuilder();
         for (int i = 0; i < Math.min(maxWords, words.length); i++) {
