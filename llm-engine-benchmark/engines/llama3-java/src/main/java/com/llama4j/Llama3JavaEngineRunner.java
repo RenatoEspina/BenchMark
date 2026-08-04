@@ -33,70 +33,62 @@ public final class Llama3JavaEngineRunner implements EngineRunner {
         model = ModelLoader.loadModel(ggufPath, spec.maxTokens(), true);
     }
 
-@Override
-public RunResult run(ModelSpec spec, String prompt) throws Exception {
-    long loadStart = System.currentTimeMillis();
-    ensureReady(spec);
-    long loadTimeMs = System.currentTimeMillis() - loadStart;
-
-    Llama.State state = model.createNewState(BATCH_SIZE);
-    ChatFormat chatFormat = new ChatFormat(model.tokenizer());
-
-    List<Integer> promptTokens = new ArrayList<>();
-    promptTokens.add(chatFormat.beginOfText);
-    String systemPrompt = spec.systemPrompt() != null ? spec.systemPrompt() : DEFAULT_SYSTEM_PROMPT;
-    promptTokens.addAll(chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.SYSTEM, systemPrompt)));
-    promptTokens.addAll(chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.USER, prompt)));
-    promptTokens.addAll(chatFormat.encodeHeader(new ChatFormat.Message(ChatFormat.Role.ASSISTANT, "")));
-
-    Set<Integer> stopTokens = chatFormat.getStopTokens();
-    Sampler sampler = Llama3.selectSampler(model.configuration().vocabularySize, spec.temperature(), DEFAULT_TOP_P, System.nanoTime());
-
-
-    int modelContextLimit = model.configuration().contextLength;
-    int requestedMaxTokens = spec.maxTokens();
-    
-
-    if (promptTokens.size() >= modelContextLimit) {
-        System.err.println("[Llama3 Runner ERROR] Prompt excede el contexto del modelo (" + 
-                          promptTokens.size() + " >= " + modelContextLimit + ")");
-        promptTokens = promptTokens.subList(0, modelContextLimit - 1);
-    }
-    
-    int availableForGeneration = modelContextLimit - promptTokens.size();
-    
-    int effectiveMaxTokens = Math.min(requestedMaxTokens, availableForGeneration);
-    
-    if (requestedMaxTokens > availableForGeneration) {
-        System.err.println("[Llama3 Runner WARN] No hay suficiente espacio en el contexto para generar " + 
-                          requestedMaxTokens + " tokens. Generando " + effectiveMaxTokens + 
-                          " (prompt: " + promptTokens.size() + ", contexto: " + modelContextLimit + ")");
-    }
-
-    long generateStart = System.currentTimeMillis();
-    List<Integer> responseTokens = Llama.generateTokens(
-        model, state, 0, promptTokens, stopTokens, 
-        modelContextLimit, 
-        sampler, false, null
-    );
-    long generateTimeMs = System.currentTimeMillis() - generateStart;
-
-    if (responseTokens.size() > effectiveMaxTokens) {
-        System.err.println("[Llama3 Runner INFO] Truncando respuesta de " + responseTokens.size() + 
-                          " a " + effectiveMaxTokens + " tokens");
-        responseTokens = responseTokens.subList(0, effectiveMaxTokens);
-    }
-
-    if (!responseTokens.isEmpty() && stopTokens.contains(responseTokens.get(responseTokens.size() - 1))) {
-        responseTokens.remove(responseTokens.size() - 1);
-    }
-    
-    String responseText = model.tokenizer().decode(responseTokens);
-    return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, responseTokens.size());
-}
-
     @Override
-    public void close() {
-        model = null;
+    public RunResult run(ModelSpec spec, String prompt) throws Exception {
+        long loadStart = System.currentTimeMillis();
+        ensureReady(spec);
+        long loadTimeMs = System.currentTimeMillis() - loadStart;
+
+        Llama.State state = model.createNewState(BATCH_SIZE);
+        ChatFormat chatFormat = new ChatFormat(model.tokenizer());
+
+        List<Integer> promptTokens = new ArrayList<>();
+        promptTokens.add(chatFormat.beginOfText);
+        String systemPrompt = spec.systemPrompt() != null ? spec.systemPrompt() : DEFAULT_SYSTEM_PROMPT;
+        promptTokens.addAll(chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.SYSTEM, systemPrompt)));
+        promptTokens.addAll(chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.USER, prompt)));
+        promptTokens.addAll(chatFormat.encodeHeader(new ChatFormat.Message(ChatFormat.Role.ASSISTANT, "")));
+
+        Set<Integer> stopTokens = chatFormat.getStopTokens();
+        Sampler sampler = Llama3.selectSampler(model.configuration().vocabularySize, spec.temperature(), DEFAULT_TOP_P, System.nanoTime());
+
+        int modelContextLimit = model.configuration().contextLength;
+        int requestedMaxTokens = spec.maxTokens();
+    
+        int availableForGeneration = modelContextLimit - promptTokens.size();
+    
+        int effectiveMaxTokens = Math.min(requestedMaxTokens, availableForGeneration);
+    
+        int absolutePositionLimit = promptTokens.size() + effectiveMaxTokens;
+    
+        if (requestedMaxTokens > availableForGeneration) {
+            System.err.println("[Llama3 Runner WARN] No hay suficiente espacio en el contexto. " +
+                                "Solicitado: " + requestedMaxTokens + ", Disponible: " + availableForGeneration + 
+                                ". Generando " + effectiveMaxTokens + " tokens.");
+        }
+
+        long generateStart = System.currentTimeMillis();
+        List<Integer> responseTokens = Llama.generateTokens(
+            model, state, 
+            0,                          
+            promptTokens, 
+            stopTokens, 
+            absolutePositionLimit,      
+            sampler, false, null
+        );
+        long generateTimeMs = System.currentTimeMillis() - generateStart;
+
+        if (responseTokens.size() > effectiveMaxTokens) {
+            System.err.println("[Llama3 Runner INFO] Truncando respuesta de " + 
+                                responseTokens.size() + " a " + effectiveMaxTokens + " tokens");
+            responseTokens = responseTokens.subList(0, effectiveMaxTokens);
+        }
+
+        if (!responseTokens.isEmpty() && stopTokens.contains(responseTokens.get(responseTokens.size() - 1))) {
+            responseTokens.remove(responseTokens.size() - 1);
+        }
+    
+        String responseText = model.tokenizer().decode(responseTokens);
+        return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, responseTokens.size());
     }
 }
