@@ -18,8 +18,11 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
 
     private static final String DEFAULT_SYSTEM_PROMPT = "Eres un asistente conciso.";
     private static final boolean DEFAULT_ON_GPU = Boolean.parseBoolean(System.getProperty("gpullama3.onGPU", "true"));
-
+    
+    private static final int HARD_CONTEXT_LIMIT = 8192;
+    
     private GPULlama3ChatModel model;
+    private int requestedMaxTokens; // Guardar el maxTokens solicitado
 
     @Override
     public EngineType type() {
@@ -32,10 +35,13 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
             return;
         }
         Path ggufPath = ModelResolver.resolve(spec.modelRef(), spec.workDir());
+        requestedMaxTokens = spec.maxTokens(); // Guardar para usar después
+        
+        // El modelo se inicializa con el contexto completo, no con maxTokens
         model = GPULlama3ChatModel.builder()
                 .modelPath(ggufPath)
                 .temperature((double) spec.temperature())
-                .maxTokens(spec.maxTokens())
+                .maxTokens(HARD_CONTEXT_LIMIT) // Contexto completo del modelo
                 .onGPU(DEFAULT_ON_GPU)
                 .build();
     }
@@ -47,6 +53,8 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
         long loadTimeMs = System.currentTimeMillis() - loadStart;
 
         String systemPrompt = spec.systemPrompt() != null ? spec.systemPrompt() : DEFAULT_SYSTEM_PROMPT;
+        
+        // ChatRequest NO acepta maxTokens - solo mensajes y parámetros de request
         ChatRequest request = ChatRequest.builder()
                 .messages(SystemMessage.from(systemPrompt), UserMessage.from(prompt))
                 .build();
@@ -55,8 +63,46 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
         ChatResponse response = model.chat(request);
         long generateTimeMs = System.currentTimeMillis() - generateStart;
 
+        String responseText = response.aiMessage().text();
+        
+        // Limitar la respuesta a los tokens solicitados si es necesario
+        if (spec.maxTokens() > 0) {
+            responseText = truncateResponseToMaxTokens(responseText, spec.maxTokens());
+        }
+        
         int tokensGenerated = extractTokenCount(response, responseText);
         return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, tokensGenerated);
+    }
+    
+    // Método para truncar la respuesta si excede los tokens máximos solicitados
+    private String truncateResponseToMaxTokens(String responseText, int maxTokens) {
+        // Si el modelo ya reporta el conteo de tokens, lo usamos
+        // Si no, hacemos una estimación y truncamos por palabras
+        String[] words = responseText.split("\\s+");
+        int estimatedTokens = (int) Math.ceil(words.length * 1.5);
+        
+        if (estimatedTokens <= maxTokens) {
+            return responseText;
+        }
+        
+        // Truncar aproximadamente al número de palabras correspondiente
+        int maxWords = (int) Math.floor(maxTokens / 1.5);
+        StringBuilder truncated = new StringBuilder();
+        for (int i = 0; i < Math.min(maxWords, words.length); i++) {
+            truncated.append(words[i]).append(" ");
+        }
+        
+        System.err.println("[GPULlama3 Runner INFO] Respuesta truncada de " + estimatedTokens + 
+                          " a ~" + maxTokens + " tokens solicitados");
+        return truncated.toString().trim();
+    }
+    
+    private int estimatePromptTokens(String text) {
+        if (text == null || text.isBlank()) {
+            return 0;
+        }
+        String[] words = text.split("\\s+");
+        return (int) Math.ceil(words.length * 1.5);
     }
 
     private int extractTokenCount(ChatResponse response, String responseText) {
@@ -73,7 +119,7 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
         if (text == null || text.isBlank()) {
             return 0;
         }
-        return text.trim().split("\\s+").length;
+        return (int) Math.ceil(text.trim().split("\\s+").length * 1.5);
     }
 
     @Override
