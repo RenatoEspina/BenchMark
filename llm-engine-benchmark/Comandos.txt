@@ -10,7 +10,7 @@ $proc.PriorityClass = "High"
 $proc.WaitForExit()
 
 -Llama3.java: 
-$proc = Start-Process java -ArgumentList "--add-modules","jdk.incubator.vector","-jar","benchmark-app\target\benchmark-app.jar","--engine=LLAMA3_JAVA","--model=C:\Users\yonom\OneDrive\Escritorio\Investigacion\Modelos\Llama-3.2-1B-Instruct-F16.gguf","--prompt=`" `"","--max-tokens=","--rag=","--rag-corpus=","--rag-topk=" -PassThru -NoNewWindow
+$proc = Start-Process java -ArgumentList "--add-modules","jdk.incubator.vector","-jar","benchmark-app\target\benchmark-app.jar","--engine=LLAMA3_JAVA","--model=C:\Users\yonom\OneDrive\Escritorio\Investigacion\Modelos\Llama-3.2-1B-Instruct-F16.gguf","--prompt=`"Explicame como ah ido a evolucionando la ia local se detallad`"","--max-tokens=5000","--rag=","--rag-corpus=","--rag-topk=" -PassThru -NoNewWindow
 Start-Sleep -Milliseconds 200
 $proc.ProcessorAffinity = [IntPtr]0xFFF
 $proc.PriorityClass = "High"

@@ -30,43 +30,56 @@ public final class GPULlama3JavaEngineRunner implements EngineRunner {
 
     @Override
     public void ensureReady(ModelSpec spec) throws Exception {
-        if (model != null) {
-            return;
-        }
+
         Path ggufPath = ModelResolver.resolve(spec.modelRef(), spec.workDir());
-        requestedMaxTokens = spec.maxTokens(); 
+
         model = GPULlama3ChatModel.builder()
                 .modelPath(ggufPath)
                 .temperature((double) spec.temperature())
-                .maxTokens(HARD_CONTEXT_LIMIT) 
+                .maxTokens(spec.maxTokens())
                 .onGPU(DEFAULT_ON_GPU)
                 .build();
+
     }
 
     @Override
     public RunResult run(ModelSpec spec, String prompt) throws Exception {
+
         long loadStart = System.currentTimeMillis();
         ensureReady(spec);
         long loadTimeMs = System.currentTimeMillis() - loadStart;
 
-        String systemPrompt = spec.systemPrompt() != null ? spec.systemPrompt() : DEFAULT_SYSTEM_PROMPT;
-        
+        String systemPrompt = spec.systemPrompt() != null
+                            ? spec.systemPrompt()
+                            : DEFAULT_SYSTEM_PROMPT;
+
         ChatRequest request = ChatRequest.builder()
-                .messages(SystemMessage.from(systemPrompt), UserMessage.from(prompt))
-                .build();
+                            .messages(
+                            SystemMessage.from(systemPrompt),
+                            UserMessage.from(prompt)
+                            ).build();
 
         long generateStart = System.currentTimeMillis();
+
         ChatResponse response = model.chat(request);
+
         long generateTimeMs = System.currentTimeMillis() - generateStart;
 
         String responseText = response.aiMessage().text();
-        
-        if (spec.maxTokens() > 0) {
-            responseText = truncateResponseToMaxTokens(responseText, spec.maxTokens());
-        }
-        
+
+        TokenUsage tokenUsage = null;
+
         int tokensGenerated = extractTokenCount(response, responseText);
-        return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, tokensGenerated);
+
+        return RunResult.of(
+                type(),
+                spec.modelRef(),
+                prompt,
+                responseText,
+                loadTimeMs,
+                generateTimeMs,
+                tokensGenerated
+        );
     }
     
     private String truncateResponseToMaxTokens(String responseText, int maxTokens) {
