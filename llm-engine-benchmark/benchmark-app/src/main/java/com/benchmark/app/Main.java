@@ -226,8 +226,7 @@ public final class Main {
 
     private static boolean inProcess(EngineType type) {
         return switch (type) {
-            case JLAMA, LLAMA3_JAVA, GPULLAMA3_JAVA -> true;
-            default -> false;
+            return type ==EngineType.JLAMA;
         };
     }
 

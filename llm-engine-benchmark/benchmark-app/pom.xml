@@ -26,21 +26,6 @@
         </dependency>
         <dependency>
             <groupId>com.benchmark</groupId>
-            <artifactId>engine-llama3-java</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.benchmark</groupId>
-            <artifactId>engine-gpullama3-java</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.benchmark</groupId>
-            <artifactId>engine-llama-cpp</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.benchmark</groupId>
             <artifactId>engine-ollama</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -54,15 +39,6 @@
     <build>
         <finalName>benchmark-app</finalName>
         <plugins>
-            <!--
-                maven-assembly-plugin NO fusiona archivos duplicados como
-                META-INF/services/com.benchmark.core.EngineRunner: cada modulo
-                de engine (jlama, llama3-java, ...) aporta un archivo con esa
-                misma ruta, y el assembly se queda solo con uno, haciendo que
-                el ServiceLoader deje de ver a los demas engines en el jar final.
-                maven-shade-plugin con ServicesResourceTransformer si fusiona
-                esos archivos correctamente.
-            -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
