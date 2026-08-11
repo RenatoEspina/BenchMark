@@ -23,4 +23,4 @@ $proc.WaitForExit()
 3. nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -lms 200 | Out-File bench-logs\vllm-run1.csv
 4. (otra terminal) java -jar benchmark-app\target\benchmark-app.jar --engine=VLLM --model=meta-llama/Llama-3.2-1B-Instruct --prompt="" --max-tokens= --rag= --rag-corpus= --rag-topk=
 5. Ctrl+C en la terminal del paso 2, luego: .\docker-stats-avg-peak.ps1 -CsvPath .\bench-logs\vllm-run1-docker.csv
-6. Ctrl+C en la terminal del paso 1 para bajar el contenedor y .\gpu-avg-util.ps1 -CsvPath .\bench-logs\vllm-run1.csv
+6. Ctrl+C en la terminal del paso 1 para bajar el contenedor y .\gpu-avg-util.ps1 -CsvPath .\bench-logs\vllm-run1.csva

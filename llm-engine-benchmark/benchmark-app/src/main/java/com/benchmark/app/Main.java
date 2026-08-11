@@ -168,7 +168,7 @@ public final class Main {
     }
 
     private static boolean inProcess(EngineType type) {
-        return type == EngineType.JLAMA;
+        return false;
     }
 
     private static void printResult(RunResult result, boolean inProcess) {

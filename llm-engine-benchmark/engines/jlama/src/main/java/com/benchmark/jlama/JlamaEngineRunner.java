@@ -19,7 +19,11 @@ import java.time.Duration;
 public final class JlamaEngineRunner implements EngineRunner {
 
     private static final String DEFAULT_SYSTEM_PROMPT = "Eres un asistente conciso.";
-    private static final String HOST = System.getProperty("jlamaserver.host", "http://localhost:8080");
+    private static final String HOST =
+    System.getProperty(
+        "jlamaserver.host",
+        System.getenv().getOrDefault("JLAMA_SERVER_HOST", "http://localhost:8080")
+    );
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient client = HttpClient.newBuilder()
