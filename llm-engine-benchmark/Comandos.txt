@@ -12,7 +12,7 @@ $proc.WaitForExit()
 -Ollama
 1.  .\set-pcore-affinity.ps1 -ProcessName "ollama*"
 2.  nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -lms 200 | Out-File bench-logs\ollama-run1-gpu.csv
-3. .\server-request-monitor.ps1 -Label ollama-run1 -ServerProcessName ollama -JavaArgs "-jar","benchmark-app\target\benchmark-app.jar","--engine=OLLAMA","--model=llama3.2:1b","--prompt=","--max-tokens=","--rag=","--rag-corpus=","--rag-topk="
+3. .\server-request-monitor.ps1 -Label ollama-run1 -ServerProcessName ollama -JavaArgs "-jar","benchmark-app\target\benchmark-app.jar","--engine=OLLAMA","--model=llama3.2:1b-Instruct","--prompt=","--max-tokens=","--rag=","--rag-corpus=","--rag-topk="
 4.  .\gpu-avg-util.ps1 -CsvPath .\bench-logs\ollama-run1-gpu.csv
 
 -vllm
