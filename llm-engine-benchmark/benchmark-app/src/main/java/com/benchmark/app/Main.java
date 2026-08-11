@@ -19,7 +19,7 @@ import java.util.Set;
 public final class Main {
 
     private static final Path DEFAULT_WORK_DIR = Path.of("./models");
-    
+   
     private static final Set<String> KNOWN_OPTION_KEYS = Set.of(
         "engine", "model", "prompt", "workdir", "max-tokens", "temperature", "system-prompt",
         "rag", "rag-corpus", "rag-topk", "rag-chunk-size", "rag-chunk-overlap");
@@ -47,9 +47,8 @@ public final class Main {
             printMenu();
             String choice = scanner.nextLine().trim();
             switch (choice) {
-                case "1" -> startBenchmark(scanner);
-                case "2" -> deleteModels(scanner);
-                case "3" -> running = false;
+                case "1" -> deleteModels(scanner);
+                case "2" -> running = false;
                 default -> System.out.println("Opcion invalida.");
             }
         }
@@ -59,65 +58,9 @@ public final class Main {
     private static void printMenu() {
         System.out.println();
         System.out.println("=== LLM Engine Benchmark ===");
-        System.out.println("1) Iniciar benchmark");
-        System.out.println("2) Borrar modelos descargados");
-        System.out.println("3) Salir");
+        System.out.println("1) Borrar modelos descargados");
+        System.out.println("2) Salir");
         System.out.print("Elegi una opcion: ");
-    }
-
-    private static void startBenchmark(Scanner scanner) {
-        List<EngineType> engines = EngineRegistry.availableEngines().stream()
-                .sorted()
-                .toList();
-        if (engines.isEmpty()) {
-            System.out.println("No hay engines disponibles en el classpath.");
-            return;
-        }
-
-        System.out.println("Engines disponibles:");
-        for (int i = 0; i < engines.size(); i++) {
-            System.out.printf("  %d) %s%n", i + 1, engines.get(i));
-        }
-        System.out.print("Elegi un engine: ");
-        int engineIndex = readInt(scanner.nextLine().trim(), -1) - 1;
-        if (engineIndex < 0 || engineIndex >= engines.size()) {
-            System.out.println("Opcion invalida.");
-            return;
-        }
-        EngineType engineType = engines.get(engineIndex);
-
-        System.out.print("Referencia del modelo (repo HF, ruta local o URL .gguf): ");
-        String modelRef = scanner.nextLine().trim();
-        if (modelRef.isBlank()) {
-            System.out.println("El modelo es requerido.");
-            return;
-        }
-
-        System.out.print("Prompt (enter para el de ejemplo \"Cual es la capital de Chile?\"): ");
-        String prompt = scanner.nextLine().trim();
-        if (prompt.isBlank()) {
-            prompt = "Cual es la capital de Chile?";
-        }
-
-        System.out.print("Max tokens (enter para 256): ");
-        int maxTokens = readInt(scanner.nextLine().trim(), 256);
-
-        System.out.print("Temperature (enter para 0.0): ");
-        float temperature = readFloat(scanner.nextLine().trim(), 0.0f);
-
-        ModelSpec spec = new ModelSpec(engineType, modelRef, DEFAULT_WORK_DIR, null, maxTokens, temperature);
-        try (EngineRunner runner = EngineRegistry.create(engineType)) {
-            System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
-            ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
-            ResourceUsage.CpuSampler sampler = ResourceUsage.CpuSampler.start(50);
-            long overallStartNanos = System.nanoTime();
-            RunResult result = runner.run(spec, prompt);
-            long generationStartNanos = overallStartNanos + result.loadTimeMs() * 1_000_000L;
-            ResourceUsage.GenerationCpuStats genStats = sampler.stopAndSummarize(generationStartNanos);
-            printResult(result.withResourceUsage(snapshot.diff(genStats)), inProcess(engineType));  
-        } catch (Exception e) {
-            System.out.println("Error ejecutando el benchmark: " + e.getMessage());
-        }
     }
 
     private static void deleteModels(Scanner scanner) {
@@ -225,9 +168,7 @@ public final class Main {
     }
 
     private static boolean inProcess(EngineType type) {
-        return switch (type) {
-            return type ==EngineType.JLAMA;
-        };
+        return type == EngineType.JLAMA;
     }
 
     private static void printResult(RunResult result, boolean inProcess) {
@@ -256,9 +197,9 @@ public final class Main {
                     System.out.println("  CPU% promedio (generacion): " + String.format("%.1f", usage.cpuPercentAvgGeneration()) + " %");
                     System.out.println("  CPU% pico (generacion): " + String.format("%.1f", usage.cpuPercentPeakGeneration()) + " %");
                 } else {
-                System.out.println("  CPU% generacion: sin muestras (generacion demasiado corta)");
+                    System.out.println("  CPU% generacion: sin muestras (generacion demasiado corta)");
                 }
-            }   
+            }  
             System.out.println("  GC: " + usage.gcCount() + " colecciones, " + usage.gcTimeMs() + " ms");
             System.out.println("  CPUs disponibles: " + usage.availableProcessors());
         }
