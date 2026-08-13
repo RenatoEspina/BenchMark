@@ -25,18 +25,10 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- JLama -->
+        <!-- OpenAI-compatible server client -->
         <dependency>
-            <groupId>com.github.tjake</groupId>
-            <artifactId>jlama-core</artifactId>
-            <version>${jlama.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.github.tjake</groupId>
-            <artifactId>jlama-native</artifactId>
-            <version>${jlama.version}</version>
-            <classifier>${os.detected.name}-${os.detected.arch}</classifier>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
 
         <!-- Logging -->
@@ -48,15 +40,5 @@
         </dependency>
 
     </dependencies>
-
-    <build>
-        <extensions>
-            <extension>
-                <groupId>kr.motd.maven</groupId>
-                <artifactId>os-maven-plugin</artifactId>
-                <version>1.7.1</version>
-            </extension>
-        </extensions>
-    </build>
 
 </project>

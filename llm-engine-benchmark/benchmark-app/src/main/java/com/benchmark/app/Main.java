@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.Locale;
 
 public final class Main {
 
@@ -122,7 +123,11 @@ public final class Main {
         Map<String, String> options = parseArgs(args);
         applyExtraSystemProperties(options);
 
-        EngineType engineType = EngineType.valueOf(options.getOrDefault("engine", "JLAMA").toUpperCase());
+        String engineName = options.getOrDefault("engine", "JLAMA_SERVER").toUpperCase(Locale.ROOT);
+        if (engineName.equals("JLAMA")) {
+            engineName = "JLAMA_SERVER";
+        }
+        EngineType engineType = EngineType.valueOf(engineName);
         String modelRef = options.getOrDefault("model", "tjake/Llama-3.2-1B-Instruct-JQ4");
         String prompt = options.getOrDefault("prompt", "Cual es la capital de Chile?");
         Path workDir = Path.of(options.getOrDefault("workdir", DEFAULT_WORK_DIR.toString()));

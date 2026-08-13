@@ -12,10 +12,9 @@
     <packaging>pom</packaging>
 
     <properties>
-        <maven.compiler.release>25</maven.compiler.release>
+        <maven.compiler.release>26</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <jlama.version>0.8.4</jlama.version>
         <slf4j.version>2.0.16</slf4j.version>
         <langchain4j.version>1.12.2</langchain4j.version>
         <jackson.version>2.18.2</jackson.version>
@@ -42,13 +41,6 @@
     </modules>
 
     <build>
-        <extensions>
-            <extension>
-                <groupId>kr.motd.maven</groupId>
-                <artifactId>os-maven-plugin</artifactId>
-                <version>1.7.1</version>
-            </extension>
-        </extensions>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -56,12 +48,6 @@
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.13.0</version>
                     <configuration>
-                        <release>${maven.compiler.release}</release>
-                        <enablePreview>true</enablePreview>
-                        <compilerArgs>
-                            <arg>--add-modules</arg>
-                            <arg>jdk.incubator.vector</arg>
-                        </compilerArgs>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -71,9 +57,6 @@
                     <configuration>
                         <executable>java</executable>
                         <arguments>
-                            <argument>--enable-preview</argument>
-                            <argument>--add-modules</argument>
-                            <argument>jdk.incubator.vector</argument>
                             <argument>-classpath</argument>
                             <classpath/>
                             <argument>com.benchmark.app.Main</argument>

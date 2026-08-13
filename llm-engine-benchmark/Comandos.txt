@@ -1,26 +1,253 @@
-Ruta modelo local: C:\Users\yonom\OneDrive\Escritorio\Investigacion\Modelos\Llama-3.2-1B-Instruct-F16.gguf (LLAMA3, GPULLAMA3 Y LLAMACPP)
-ruta modelo huggin JLAMA: tjake/Llama-3.2-1B-Instruct-JQ4
-Ruta modelo huggin: meta-llama/Llama-3.2-1B-Instruct
+# FLUJO LINUX/BASH — BENCHMARK CON LOS TRES ENGINES COMO SERVIDORES DOCKER
 
--Jlama: 
-$proc = Start-Process java -ArgumentList "--add-modules","jdk.incubator.vector","-jar","benchmark-app\target\benchmark-app.jar","--engine=JLAMA","--model=tjake/Llama-3.2-1B-Instruct-JQ4","--prompt=`" `"","--max-tokens=","--rag=","--rag-corpus=","--rag-topk=" -PassThru -NoNewWindow
-Start-Sleep -Milliseconds 200
-$proc.ProcessorAffinity = [IntPtr]0xFFF
-$proc.PriorityClass = "High"
-$proc.WaitForExit()
+# Este flujo se ejecuta con Bash desde la raíz del repositorio, es decir, desde
+# la carpeta que contiene docker-compose.yml. Si tu shell es fish, escribe
+# "bash" primero y pega allí estos comandos; no uses export directamente en
+# fish.
 
--Ollama
-1.  .\set-pcore-affinity.ps1 -ProcessName "ollama*"
-2.  nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -lms 200 | Out-File bench-logs\ollama-run1-gpu.csv
-3. .\server-request-monitor.ps1 -Label ollama-run1 -ServerProcessName ollama -JavaArgs "-jar","benchmark-app\target\benchmark-app.jar","--engine=OLLAMA","--model=llama3.2:1b-Instruct","--prompt=","--max-tokens=","--rag=","--rag-corpus=","--rag-topk="
-4.  .\gpu-avg-util.ps1 -CsvPath .\bench-logs\ollama-run1-gpu.csv
+# ============================================================================
+# 0. PREPARACIÓN
+# ============================================================================
 
--vllm
-1. .\server-startup-timer.ps1 -Label vllm -HealthUrl http://localhost:8000/health -Command docker -CommandArgs "run","--gpus","all","-p","8000:8000","--cpuset-cpus=0-11","-e","HUGGING_FACE_HUB_TOKEN=$env:HF_TOKEN","vllm/vllm-openai:v0.8.5","--model","meta-llama/Llama-3.2-1B-Instruct","--gpu-memory-utilization","0.70","--max-model-len","2048","--enforce-eager"
-   (dejar corriendo; anotar "Tiempo hasta health check OK" como Cargar Modelo)
-2. (otra terminal) docker ps
-   .\docker-monitor.ps1 -Container  -Label vllm-run1
-3. nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total --format=csv -lms 200 | Out-File bench-logs\vllm-run1.csv
-4. (otra terminal) java -jar benchmark-app\target\benchmark-app.jar --engine=VLLM --model=meta-llama/Llama-3.2-1B-Instruct --prompt="" --max-tokens= --rag= --rag-corpus= --rag-topk=
-5. Ctrl+C en la terminal del paso 2, luego: .\docker-stats-avg-peak.ps1 -CsvPath .\bench-logs\vllm-run1-docker.csv
-6. Ctrl+C en la terminal del paso 1 para bajar el contenedor y .\gpu-avg-util.ps1 -CsvPath .\bench-logs\vllm-run1.csva
+# Si ya estás dentro del repositorio, esto detecta su raíz automáticamente.
+cd "$(git rev-parse --show-toplevel)"
+
+set -euo pipefail
+
+APP_DIR="$PWD/llm-engine-benchmark"
+LOG_DIR="$PWD/bench-logs"
+JAR="$APP_DIR/benchmark-app/target/benchmark-app.jar"
+PROMPT="Explica en una frase qué es una estructura de datos."
+
+mkdir -p "$LOG_DIR" "$PWD/models"
+
+# Comprueba que el entorno corresponde a Linux y que Maven usa JDK 25.
+java -version
+mvn -version
+docker compose version
+nvidia-smi
+
+# vLLM necesita un token de Hugging Face porque el modelo de Meta es gated.
+# Define el token solo en la sesión; no lo guardes en Comandos.txt ni lo subas
+# a Git. En Bash:
+# export HF_TOKEN='hf_...'
+# En fish, antes de entrar a Bash:
+# set -gx HF_TOKEN 'hf_...'
+
+# ============================================================================
+# 1. COMPILAR LA APLICACIÓN
+# ============================================================================
+
+cd "$APP_DIR"
+mvn clean package -DskipTests
+cd "$PWD/.."  # vuelve a la raíz del repositorio
+
+# Verifica que el JAR final exista.
+test -f "$JAR"
+
+# ============================================================================
+# 2. CONSTRUIR LA IMAGEN DE JLAMA 0.8.4
+# ============================================================================
+
+# El Dockerfile oficial de JLama debe construirse desde la raíz del repositorio
+# de JLama, no desde llm-engine-benchmark. La versión 0.8.4 coincide con la
+# dependencia jlama-core usada por este benchmark.
+JLAMA_SRC="${JLAMA_SRC:-$PWD/../Jlama-v0.8.4}"
+
+if [ ! -f "$JLAMA_SRC/Dockerfile" ]; then
+    git clone --branch v0.8.4 --depth 1 \
+        https://github.com/tjake/Jlama.git "$JLAMA_SRC"
+fi
+
+docker build -t jlama:0.8.4 "$JLAMA_SRC"
+export JLAMA_IMAGE=jlama:0.8.4
+
+# Comprueba la configuración sin iniciar los servicios.
+docker compose config >/dev/null
+
+# ============================================================================
+# 3. FUNCIONES DE APOYO PARA MEDIR CADA EJECUCIÓN
+# ============================================================================
+
+wait_http() {
+    local service="$1"
+    local url="$2"
+    local timeout_seconds="${3:-900}"
+    local deadline=$((SECONDS + timeout_seconds))
+
+    until curl -fsS "$url" >/dev/null; do
+        if (( SECONDS >= deadline )); then
+            echo "Timeout esperando $service en $url"
+            docker compose logs --no-color "$service"
+            return 1
+        fi
+        sleep 0.2
+    done
+}
+
+start_docker_monitor() {
+    local container="$1"
+    local log="$2"
+    printf 'timestamp,cpu_perc,mem_usage,mem_perc\n' > "$log"
+
+    (
+        while docker inspect --format '{{.State.Running}}' "$container" 2>/dev/null \
+                | grep -q '^true$'; do
+            printf '%s,' "$(date --iso-8601=seconds)" >> "$log"
+            docker stats "$container" --no-stream \
+                --format '{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}' >> "$log"
+            sleep 1
+        done
+    ) &
+    STATS_PID=$!
+}
+
+start_gpu_monitor() {
+    local log="$1"
+    nvidia-smi \
+        --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,memory.total \
+        --format=csv -lms 200 > "$log" 2>&1 &
+    GPU_PID=$!
+}
+
+stop_monitors() {
+    if [ -n "${STATS_PID:-}" ]; then
+        kill "$STATS_PID" 2>/dev/null || true
+        wait "$STATS_PID" 2>/dev/null || true
+        STATS_PID=""
+    fi
+    if [ -n "${GPU_PID:-}" ]; then
+        kill "$GPU_PID" 2>/dev/null || true
+        wait "$GPU_PID" 2>/dev/null || true
+        GPU_PID=""
+    fi
+}
+
+run_benchmark() {
+    local label="$1"
+    local container="$2"
+    local engine="$3"
+    local model="$4"
+    local gpu="$5"
+
+    start_docker_monitor "$container" "$LOG_DIR/$label-docker.csv"
+    GPU_PID=""
+    if [ "$gpu" = "true" ]; then
+        start_gpu_monitor "$LOG_DIR/$label-gpu.csv"
+    fi
+
+    set +e
+    java -jar "$JAR" \
+        "--engine=$engine" \
+        "--model=$model" \
+        "--prompt=$PROMPT" \
+        --max-tokens=128 \
+        --context=2048 \
+        --temperature=0 \
+        --rag=false
+    local status=$?
+    set -e
+
+    stop_monitors
+    return "$status"
+}
+
+stop_all() {
+    stop_monitors
+    docker compose down --remove-orphans >/dev/null 2>&1 || true
+}
+
+# Si una request falla o se pulsa Ctrl+C, detiene los monitores y contenedores.
+trap stop_all EXIT INT TERM
+
+# ============================================================================
+# 4. JLAMA SERVER — CPU, PUERTO 8080
+# ============================================================================
+
+stop_all
+
+start_ms=$(date +%s%3N)
+docker compose up -d jlama
+wait_http jlama http://127.0.0.1:8080/ui/index.html 900
+echo "JLama listo en $(( $(date +%s%3N) - start_ms )) ms"
+
+# JLama no usa CUDA; se mide con docker stats, no con nvidia-smi.
+run_benchmark \
+    jlama-run1 \
+    jlama \
+    JLAMA_SERVER \
+    tjake/Llama-3.2-1B-Instruct-JQ4 \
+    false
+
+stop_all
+
+# ============================================================================
+# 5. OLLAMA SERVER — GPU, PUERTO 11434
+# ============================================================================
+
+stop_all
+
+start_ms=$(date +%s%3N)
+docker compose up -d ollama
+wait_http ollama http://127.0.0.1:11434/api/tags 60
+echo "Ollama server listo en $(( $(date +%s%3N) - start_ms )) ms"
+
+# Este es el tag oficial disponible para el modelo 1B. La descarga se hace
+# antes de la request para no mezclarla con el tiempo de inferencia.
+docker exec ollama ollama pull llama3.2:1b
+
+run_benchmark \
+    ollama-run1 \
+    ollama \
+    OLLAMA \
+    llama3.2:1b \
+    true
+
+stop_all
+
+# ============================================================================
+# 6. VLLM SERVER — GPU, PUERTO 8000
+# ============================================================================
+
+stop_all
+
+start_ms=$(date +%s%3N)
+docker compose up -d vllm
+wait_http vllm http://127.0.0.1:8000/health 900
+echo "vLLM listo en $(( $(date +%s%3N) - start_ms )) ms"
+
+run_benchmark \
+    vllm-run1 \
+    vllm \
+    VLLM \
+    meta-llama/Llama-3.2-1B-Instruct \
+    true
+
+stop_all
+
+# ============================================================================
+# 7. RESULTADOS Y REPETICIONES
+# ============================================================================
+
+# Resultados del cliente Java: los imprime cada ejecución.
+# Logs Docker: bench-logs/<engine>-run1-docker.csv
+# Logs GPU:    bench-logs/<engine>-run1-gpu.csv (solo Ollama/vLLM)
+# Logs del servidor si algo falla:
+docker compose logs --no-color vllm ollama jlama
+
+# Para repetir una sola prueba, ejecuta únicamente su sección después de
+# cargar las funciones de la sección 3. No dejes dos engines GPU levantados al
+# mismo tiempo: la RTX 3060 Laptop tiene 6 GB de VRAM.
+
+# NOTAS DE INTERPRETACIÓN
+
+# - El tiempo "listo" de JLama/vLLM mide el arranque y carga del modelo porque
+#   sus servidores no responden hasta terminar esa fase.
+# - Ollama arranca primero y descarga el modelo aparte; su load_duration aparece
+#   en la respuesta de la API y el benchmark lo imprime como "Carga".
+# - JLama 0.8.4 no devuelve usage.completion_tokens y su API ignora temperature;
+#   el runner estima tokens por palabras y conserva temperature en la request
+#   por compatibilidad.
+# - Los tres usan el mismo modelo base Llama 3.2 1B, pero no el mismo formato ni
+#   cuantización: JLama usa JQ4, Ollama usa su variante empaquetada y vLLM usa
+#   SafeTensors. Eso debe quedar indicado al interpretar los resultados.

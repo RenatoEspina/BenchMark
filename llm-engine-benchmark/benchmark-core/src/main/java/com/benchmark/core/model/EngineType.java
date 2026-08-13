@@ -1,7 +1,7 @@
 package com.benchmark.core;
 
 public enum EngineType {
-    JLAMA,
+    JLAMA_SERVER,
     OLLAMA,
     VLLM,
 }

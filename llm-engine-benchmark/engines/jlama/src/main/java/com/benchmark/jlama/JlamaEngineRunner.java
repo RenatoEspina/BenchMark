@@ -1,4 +1,4 @@
-package com.benchmark.engine.jlamaserver;
+package com.benchmark.engine.jlama;
 
 import com.benchmark.core.EngineRunner;
 import com.benchmark.core.EngineType;
@@ -19,10 +19,13 @@ import java.time.Duration;
 public final class JlamaEngineRunner implements EngineRunner {
 
     private static final String DEFAULT_SYSTEM_PROMPT = "Eres un asistente conciso.";
-    private static final String HOST =
-    System.getProperty(
+    private static final String HOST = normalizeHost(System.getProperty(
         "jlamaserver.host",
         System.getenv().getOrDefault("JLAMA_SERVER_HOST", "http://localhost:8080")
+    ));
+    private static final String HEALTH_PATH = System.getProperty(
+        "jlamaserver.healthPath",
+        System.getenv().getOrDefault("JLAMA_SERVER_HEALTH_PATH", "/ui/index.html")
     );
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -42,7 +45,9 @@ public final class JlamaEngineRunner implements EngineRunner {
         if (ready) {
             return;
         }
-        HttpRequest request = HttpRequest.newBuilder(URI.create(HOST + "/v1/models"))
+        // JLama 0.8.4 does not expose /v1/models. Its REST API starts after
+        // the model is loaded, and the UI route is the official health check.
+        HttpRequest request = HttpRequest.newBuilder(URI.create(HOST + HEALTH_PATH))
                 .timeout(Duration.ofSeconds(30))
                 .GET()
                 .build();
@@ -63,6 +68,7 @@ public final class JlamaEngineRunner implements EngineRunner {
         requestBody.put("model", spec.modelRef());
         requestBody.put("temperature", spec.temperature());
         requestBody.put("max_tokens", spec.maxTokens());
+        requestBody.put("stream", false);
 
         ArrayNode messages = requestBody.putArray("messages");
         ObjectNode systemMessage = messages.addObject();
@@ -72,7 +78,7 @@ public final class JlamaEngineRunner implements EngineRunner {
         userMessage.put("role", "user");
         userMessage.put("content", prompt);
 
-        HttpRequest request = HttpRequest.newBuilder(URI.create(HOST + "/v1/chat/completions"))
+        HttpRequest request = HttpRequest.newBuilder(URI.create(HOST + "/chat/completions"))
                 .timeout(Duration.ofMinutes(10))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
@@ -98,6 +104,13 @@ public final class JlamaEngineRunner implements EngineRunner {
             return 0;
         }
         return text.trim().split("\\s+").length;
+    }
+
+    private static String normalizeHost(String host) {
+        if (host == null || host.isBlank()) {
+            return "http://localhost:8080";
+        }
+        return host.endsWith("/") ? host.substring(0, host.length() - 1) : host;
     }
 
     @Override

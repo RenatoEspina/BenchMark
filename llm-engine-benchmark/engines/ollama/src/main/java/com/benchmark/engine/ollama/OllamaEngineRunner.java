@@ -19,6 +19,7 @@ public final class OllamaEngineRunner implements EngineRunner {
 
     private static final String DEFAULT_SYSTEM_PROMPT = "Eres un asistente conciso.";
     private static final String HOST = System.getProperty("ollama.host", "http://localhost:11434");
+    private static final int CONTEXT_LENGTH = Integer.getInteger("context", 4096);
     private static final Duration PULL_TIMEOUT = Duration.ofMinutes(Long.getLong("ollama.pullTimeoutMinutes", 30));
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -57,6 +58,7 @@ public final class OllamaEngineRunner implements EngineRunner {
         ObjectNode options = requestBody.putObject("options");
         options.put("temperature", spec.temperature());
         options.put("num_predict", spec.maxTokens());
+        options.put("num_ctx", CONTEXT_LENGTH);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(HOST + "/api/generate"))
             .timeout(Duration.ofMinutes(10))
