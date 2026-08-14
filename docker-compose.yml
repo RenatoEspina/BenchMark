@@ -52,7 +52,7 @@ services:
 jlama:
   image: ${JLAMA_IMAGE:-jlama:0.8.4}
   container_name: jlama
-  user: "${UID}:${GID}"
+  user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
   ports:
     - "8080:8080"
   volumes:
