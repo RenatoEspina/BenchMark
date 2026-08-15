@@ -426,38 +426,58 @@ end
 set -gx HF_TOKEN $HF_TOKEN
 set -gx VLLM_IMAGE vllm/vllm-openai:v0.8.5
 
+echo "Imagen seleccionada: $VLLM_IMAGE"
+
+if not docker image inspect "$VLLM_IMAGE" >/dev/null 2>&1
+    echo "La imagen no está descargada."
+    echo "Descargando $VLLM_IMAGE..."
+    docker pull "$VLLM_IMAGE"
+    or exit 1
+    echo "Imagen descargada."
+else
+    echo "Imagen Docker encontrada localmente."
+end
+
+echo "Deteniendo contenedores anteriores..."
 docker compose down --remove-orphans >/dev/null 2>&1
 or true
 
+echo "Iniciando vLLM 0.8.5..."
 set start_ms (date +%s%3N)
 
 docker compose up -d vllm
 or begin
+    echo "Error iniciando el contenedor."
     docker compose logs --no-color vllm
     exit 1
 end
 
+echo "Contenedor iniciado."
+echo "Mostrando logs de vLLM 0.8.5:"
+echo
+
+docker compose logs -f --tail=20 vllm &
+set logs_pid $last_pid
+
 set started (date +%s)
-set last_report 0
 
 while not curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1
     set running (docker inspect --format '{{.State.Running}}' vllm 2>/dev/null)
 
     if test "$running" != "true"
+        kill $logs_pid >/dev/null 2>&1
+        echo
         echo "vLLM 0.8.5 terminó antes de estar listo."
+        echo "Últimos logs:"
         docker compose logs --no-color --tail=100 vllm
         exit 1
     end
 
     set elapsed (math (date +%s) - $started)
 
-    if test (math "$elapsed - $last_report") -ge 10
-        echo "Esperando vLLM 0.8.5... "$elapsed"s"
-        docker compose logs --no-color --tail=5 vllm
-        set last_report $elapsed
-    end
-
     if test $elapsed -ge 900
+        kill $logs_pid >/dev/null 2>&1
+        echo
         echo "Timeout esperando vLLM 0.8.5."
         docker compose logs --no-color --tail=100 vllm
         exit 1
@@ -466,7 +486,14 @@ while not curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1
     sleep 1
 end
 
+kill $logs_pid >/dev/null 2>&1
+
+echo
+echo "vLLM 0.8.5 respondió correctamente en /health."
 echo "vLLM 0.8.5 listo en "(math (date +%s%3N) - $start_ms)" ms"
+
+echo
+echo "Ejecutando warm-up..."
 
 java -jar llm-engine-benchmark/benchmark-app/target/benchmark-app.jar \
     --engine=VLLM \
@@ -476,6 +503,9 @@ java -jar llm-engine-benchmark/benchmark-app/target/benchmark-app.jar \
     --context=2048 \
     --temperature=0 \
     --rag=false >/dev/null
+
+echo "Warm-up terminado."
+echo "vLLM 0.8.5 listo para benchmark."
 
 # TERMINAL 2 — MONITOR CPU/RAM
 
