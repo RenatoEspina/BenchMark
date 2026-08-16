@@ -14,7 +14,9 @@ cd llm-engine-benchmark
 mvn package -DskipTests
 cd ..
 
+#//////////////////////////////////////////////
 # JLAMA SERVER — CPU — PUERTO 8080
+#//////////////////////////////////////////////
 
 # TERMINAL 1 — SERVIDOR + WARM-UP
 
@@ -97,8 +99,9 @@ python llm-engine-benchmark/scripts/benchmark-summary.py \
 cd (git rev-parse --show-toplevel)
 docker compose down --remove-orphans
 
-
+#//////////////////////////////////////////////
 # OLLAMA SERVER — GPU — PUERTO 11434
+#//////////////////////////////////////////////
 
 # TERMINAL 1 — SERVIDOR + WARM-UP
 
@@ -193,8 +196,9 @@ python llm-engine-benchmark/scripts/benchmark-summary.py \
 cd (git rev-parse --show-toplevel)
 docker compose down --remove-orphans
 
-
+#//////////////////////////////////////////////
 # VLLM 0.24.0 — PREPARACIÓN SOLO UNA VEZ
+#//////////////////////////////////////////////
 
 cd (git rev-parse --show-toplevel)
 
@@ -228,8 +232,9 @@ while not curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1
 end
 docker compose down --remove-orphans
 
-
+#//////////////////////////////////////////////
 # VLLM 0.24.0 — GPU — PUERTO 8000
+#//////////////////////////////////////////////
 
 # TERMINAL 1 — SERVIDOR + WARM-UP
 
@@ -376,8 +381,9 @@ python llm-engine-benchmark/scripts/benchmark-summary.py \
 cd (git rev-parse --show-toplevel)
 docker compose down --remove-orphans
 
-
+#//////////////////////////////////////////////
 # VLLM 0.8.5 — PREPARACIÓN SOLO UNA VEZ
+#//////////////////////////////////////////////
 
 cd (git rev-parse --show-toplevel)
 
