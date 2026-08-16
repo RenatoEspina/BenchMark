@@ -88,16 +88,69 @@ def read_window(path):
 
 def read_docker(path):
     rows = []
+
     with open(path, newline="") as f:
-        for row in csv.DictReader(f):
+        reader = csv.DictReader(f)
+
+        expected = [
+            "timestamp_ns",
+            "cpu_perc",
+            "mem_usage",
+            "mem_perc",
+        ]
+
+        if reader.fieldnames != expected:
+            raise ValueError(
+                f"Formato Docker CSV inválido. "
+                f"Esperado: {expected}. "
+                f"Encontrado: {reader.fieldnames}"
+            )
+
+        for line_number, row in enumerate(reader, start=2):
+            if None in row:
+                raise ValueError(
+                    f"Fila {line_number}: hay columnas adicionales."
+                )
+
+            if any(value is None for value in row.values()):
+                raise ValueError(
+                    f"Fila {line_number}: faltan columnas."
+                )
+
+            raw = ",".join(row.values())
+
+            if "\x1b" in raw:
+                raise ValueError(
+                    f"Fila {line_number}: contiene secuencias ANSI."
+                )
+
             try:
-                ts = parse_docker_time(row["timestamp"])
-            except Exception:
-                continue
-            cpu = number(row.get("cpu_perc", ""))
-            usage = row.get("mem_usage", "")
-            used = mib(usage.split("/")[0])
+                ts = int(row["timestamp_ns"])
+            except ValueError:
+                raise ValueError(
+                    f"Fila {line_number}: timestamp_ns inválido: "
+                    f"{row['timestamp_ns']!r}"
+                )
+
+            cpu = number(row["cpu_perc"])
+
+            usage = row["mem_usage"]
+            used = mib(usage.split("/", 1)[0])
+
+            if math.isnan(cpu):
+                raise ValueError(
+                    f"Fila {line_number}: CPU inválida: "
+                    f"{row['cpu_perc']!r}"
+                )
+
+            if math.isnan(used):
+                raise ValueError(
+                    f"Fila {line_number}: RAM inválida: "
+                    f"{row['mem_usage']!r}"
+                )
+
             rows.append((ts, cpu, used))
+
     return rows
 
 
