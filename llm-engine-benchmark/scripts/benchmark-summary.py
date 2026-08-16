@@ -63,17 +63,6 @@ def maximum(values):
 def parse_docker_time(value):
     return int(datetime.fromisoformat(value.strip()).timestamp() * 1_000_000_000)
 
-
-def parse_gpu_time(value):
-    value = value.strip()
-    for fmt in ("%Y/%m/%d %H:%M:%S.%f", "%Y/%m/%d %H:%M:%S"):
-        try:
-            return int(datetime.strptime(value, fmt).timestamp() * 1_000_000_000)
-        except ValueError:
-            pass
-    raise ValueError(f"Timestamp NVIDIA no reconocido: {value}")
-
-
 def read_window(path):
     with open(path, newline="") as f:
         rows = list(csv.DictReader(f))
@@ -156,17 +145,42 @@ def read_docker(path):
 
 def read_gpu(path):
     rows = []
+
     with open(path, newline="") as f:
-        reader = csv.reader(f)
-        next(reader, None)
-        for row in reader:
-            if len(row) < 5:
-                continue
+        reader = csv.DictReader(f)
+
+        expected = [
+            "timestamp_ns",
+            "gpu_perc",
+            "memory_util_perc",
+            "memory_used_mib",
+            "memory_total_mib",
+        ]
+
+        if reader.fieldnames != expected:
+            raise ValueError(
+                f"Formato GPU CSV inválido. "
+                f"Esperado: {expected}. "
+                f"Encontrado: {reader.fieldnames}"
+            )
+
+        for line_number, row in enumerate(reader, start=2):
+            if None in row:
+                raise ValueError(
+                    f"Fila {line_number}: hay columnas adicionales."
+                )
+
             try:
-                ts = parse_gpu_time(row[0])
-            except Exception:
-                continue
-            rows.append((ts, number(row[1]), mib(row[3])))
+                ts = int(row["timestamp_ns"])
+                gpu = float(row["gpu_perc"].strip())
+                vram = float(row["memory_used_mib"].strip())
+            except ValueError as e:
+                raise ValueError(
+                    f"Fila GPU {line_number} inválida: {row}"
+                ) from e
+
+            rows.append((ts, gpu, vram))
+
     return rows
 
 
