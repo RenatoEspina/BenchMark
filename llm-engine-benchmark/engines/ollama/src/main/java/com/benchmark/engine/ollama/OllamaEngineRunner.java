@@ -2,6 +2,7 @@ package com.benchmark.engine.ollama;
 
 import com.benchmark.core.EngineRunner;
 import com.benchmark.core.EngineType;
+import com.benchmark.core.BenchmarkTiming;
 import com.benchmark.core.ModelSpec;
 import com.benchmark.core.RunResult;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,6 +25,7 @@ public final class OllamaEngineRunner implements EngineRunner {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient client = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
@@ -47,8 +49,11 @@ public final class OllamaEngineRunner implements EngineRunner {
 
     @Override
     public RunResult run(ModelSpec spec, String prompt) throws Exception {
+        long preparationStartNanos = System.nanoTime();
         ensureReady(spec);
+        long preparationTimeMs = BenchmarkTiming.elapsedMillis(preparationStartNanos);
 
+        long requestStartNanos = System.nanoTime();
         ObjectNode requestBody = mapper.createObjectNode();
         requestBody.put("model", spec.modelRef());
         requestBody.put("prompt", prompt);
@@ -75,11 +80,9 @@ public final class OllamaEngineRunner implements EngineRunner {
         JsonNode json = mapper.readTree(response.body());
         String responseText = json.path("response").asText("");
         int tokensGenerated = json.path("eval_count").asInt(estimateTokens(responseText));
+        long requestTimeMs = BenchmarkTiming.elapsedMillis(requestStartNanos);
 
-        long loadTimeMs = json.path("load_duration").asLong(0) / 1_000_000;
-        long generateTimeMs = json.path("eval_duration").asLong(0) / 1_000_000;
-
-        return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, tokensGenerated);
+        return RunResult.of(type(), spec.modelRef(), prompt, responseText, preparationTimeMs, requestTimeMs, tokensGenerated);
     }
 
     private boolean modelExists(String modelRef) throws Exception {

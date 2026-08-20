@@ -2,6 +2,7 @@ package com.benchmark.engine.vllm;
 
 import com.benchmark.core.EngineRunner;
 import com.benchmark.core.EngineType;
+import com.benchmark.core.BenchmarkTiming;
 import com.benchmark.core.ModelSpec;
 import com.benchmark.core.RunResult;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -47,10 +48,11 @@ public final class VLlmEngineRunner implements EngineRunner {
 
     @Override
     public RunResult run(ModelSpec spec, String prompt) throws Exception {
-        long loadStart = System.currentTimeMillis();
+        long preparationStartNanos = System.nanoTime();
         ensureReady(spec);
-        long loadTimeMs = System.currentTimeMillis() - loadStart;
+        long preparationTimeMs = BenchmarkTiming.elapsedMillis(preparationStartNanos);
 
+        long requestStartNanos = System.nanoTime();
         ObjectNode requestBody = mapper.createObjectNode();
         requestBody.put("model", spec.modelRef());
         requestBody.put("temperature", spec.temperature());
@@ -74,9 +76,7 @@ public final class VLlmEngineRunner implements EngineRunner {
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8))
                 .build();
 
-        long generateStart = System.currentTimeMillis();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        long generateTimeMs = System.currentTimeMillis() - generateStart;
 
         if (response.statusCode() / 100 != 2) {
             throw new IllegalStateException("vLLM respondio con codigo " + response.statusCode() + ": " + response.body());
@@ -85,8 +85,9 @@ public final class VLlmEngineRunner implements EngineRunner {
         JsonNode json = mapper.readTree(response.body());
         String responseText = json.path("choices").path(0).path("message").path("content").asText("");
         int tokensGenerated = json.path("usage").path("completion_tokens").asInt(estimateTokens(responseText));
+        long requestTimeMs = BenchmarkTiming.elapsedMillis(requestStartNanos);
 
-        return RunResult.of(type(), spec.modelRef(), prompt, responseText, loadTimeMs, generateTimeMs, tokensGenerated);
+        return RunResult.of(type(), spec.modelRef(), prompt, responseText, preparationTimeMs, requestTimeMs, tokensGenerated);
     }
 
     private boolean modelServed(String modelRef) throws Exception {

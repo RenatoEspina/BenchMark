@@ -69,6 +69,7 @@ public final class Main {
             System.out.println("No hay modelos descargados en " + DEFAULT_WORK_DIR);
             return;
         }
+
         List<Path> entries;
         try (var stream = Files.list(DEFAULT_WORK_DIR)) {
             entries = stream.sorted().toList();
@@ -76,6 +77,7 @@ public final class Main {
             System.out.println("No se pudo leer " + DEFAULT_WORK_DIR + ": " + e.getMessage());
             return;
         }
+
         if (entries.isEmpty()) {
             System.out.println("No hay modelos descargados en " + DEFAULT_WORK_DIR);
             return;
@@ -85,22 +87,28 @@ public final class Main {
         for (int i = 0; i < entries.size(); i++) {
             System.out.printf("  %d) %s%n", i + 1, entries.get(i).getFileName());
         }
+
         System.out.printf("  %d) Borrar todos%n", entries.size() + 1);
         System.out.print("Elegi que borrar (enter para cancelar): ");
+
         String choice = scanner.nextLine().trim();
         if (choice.isBlank()) {
             return;
         }
+
         int index = readInt(choice, -1) - 1;
+
         if (index == entries.size()) {
             entries.forEach(Main::deleteRecursively);
             System.out.println("Modelos borrados.");
             return;
         }
+
         if (index < 0 || index >= entries.size()) {
             System.out.println("Opcion invalida.");
             return;
         }
+
         deleteRecursively(entries.get(index));
         System.out.println("Borrado: " + entries.get(index).getFileName());
     }
@@ -123,52 +131,128 @@ public final class Main {
         Map<String, String> options = parseArgs(args);
         applyExtraSystemProperties(options);
 
-        String engineName = options.getOrDefault("engine", "JLAMA_SERVER").toUpperCase(Locale.ROOT);
+        String engineName = options
+                .getOrDefault("engine", "JLAMA_SERVER")
+                .toUpperCase(Locale.ROOT);
+
         if (engineName.equals("JLAMA")) {
             engineName = "JLAMA_SERVER";
         }
+
         EngineType engineType = EngineType.valueOf(engineName);
-        String modelRef = options.getOrDefault("model", "tjake/Llama-3.2-1B-Instruct-JQ4");
-        String prompt = options.getOrDefault("prompt", "Cual es la capital de Chile?");
-        Path workDir = Path.of(options.getOrDefault("workdir", DEFAULT_WORK_DIR.toString()));
-        int maxTokens = readInt(options.getOrDefault("max-tokens", ""), 256);
-        float temperature = readFloat(options.getOrDefault("temperature", ""), 0.0f);
 
-        boolean ragEnabled = Boolean.parseBoolean(options.getOrDefault("rag", "false"));
-        int ragTopK = readInt(options.getOrDefault("rag-topk", ""), 3);
-        int ragChunkSize = readInt(options.getOrDefault("rag-chunk-size", ""), 500);
-        int ragChunkOverlap = readInt(options.getOrDefault("rag-chunk-overlap", ""), 50);
+        String modelRef = options.getOrDefault(
+                "model",
+                "tjake/Llama-3.2-1B-Instruct-JQ4"
+        );
 
-        ModelSpec spec = new ModelSpec(engineType, modelRef, workDir, options.get("system-prompt"), maxTokens, temperature);
+        String prompt = options.getOrDefault(
+                "prompt",
+                "Cual es la capital de Chile?"
+        );
+
+        Path workDir = Path.of(
+                options.getOrDefault("workdir", DEFAULT_WORK_DIR.toString())
+        );
+
+        int maxTokens = readInt(
+                options.getOrDefault("max-tokens", ""),
+                256
+        );
+
+        float temperature = readFloat(
+                options.getOrDefault("temperature", ""),
+                0.0f
+        );
+
+        boolean ragEnabled = Boolean.parseBoolean(
+                options.getOrDefault("rag", "false")
+        );
+
+        int ragTopK = readInt(
+                options.getOrDefault("rag-topk", ""),
+                3
+        );
+
+        int ragChunkSize = readInt(
+                options.getOrDefault("rag-chunk-size", ""),
+                500
+        );
+
+        int ragChunkOverlap = readInt(
+                options.getOrDefault("rag-chunk-overlap", ""),
+                50
+        );
+
+        ModelSpec spec = new ModelSpec(
+                engineType,
+                modelRef,
+                workDir,
+                options.get("system-prompt"),
+                maxTokens,
+                temperature
+        );
 
         String effectivePrompt = prompt;
         long retrievalTimeMs = -1;
         int chunksRetrieved = 0;
+
         if (ragEnabled) {
             String ragCorpus = options.get("rag-corpus");
+
             if (ragCorpus == null || ragCorpus.isBlank()) {
                 System.out.println("--rag=true requiere --rag-corpus=<directorio>");
                 return;
             }
+
             long ragStart = System.currentTimeMillis();
-            var corpusChunks = com.benchmark.core.rag.RagCorpus.load(Path.of(ragCorpus), ragChunkSize, ragChunkOverlap);
+
+            var corpusChunks = com.benchmark.core.rag.RagCorpus.load(
+                    Path.of(ragCorpus),
+                    ragChunkSize,
+                    ragChunkOverlap
+            );
+
             var retriever = new com.benchmark.core.rag.RagRetriever(corpusChunks);
             var retrieved = retriever.retrieve(prompt, ragTopK);
-            effectivePrompt = com.benchmark.core.rag.RagPromptBuilder.build(prompt, retrieved);
+
+            effectivePrompt = com.benchmark.core.rag.RagPromptBuilder.build(
+                    prompt,
+                    retrieved
+            );
+
             retrievalTimeMs = System.currentTimeMillis() - ragStart;
             chunksRetrieved = retrieved.size();
         }
 
         try (EngineRunner runner = EngineRegistry.create(engineType)) {
-            System.out.println("Preparando engine " + engineType + " con modelo " + modelRef);
+            System.out.println(
+                    "Preparando engine " + engineType + " con modelo " + modelRef
+            );
+
             ResourceUsage.Snapshot snapshot = ResourceUsage.snapshot();
             ResourceUsage.CpuSampler sampler = ResourceUsage.CpuSampler.start(50);
+
             long overallStartNanos = System.nanoTime();
+
             RunResult result = runner.run(spec, effectivePrompt);
-            long generationStartNanos = overallStartNanos + result.loadTimeMs() * 1_000_000L;
-            ResourceUsage.GenerationCpuStats genStats = sampler.stopAndSummarize(generationStartNanos);
-            RunResult withRag = result.withRagInfo(retrievalTimeMs, chunksRetrieved);
-            printResult(withRag.withResourceUsage(snapshot.diff(genStats)), inProcess(engineType));
+
+            long requestStartNanos =
+                    overallStartNanos
+                            + result.preparationTimeMs() * 1_000_000L;
+
+            ResourceUsage.GenerationCpuStats genStats =
+                    sampler.stopAndSummarize(requestStartNanos);
+
+            RunResult withRag = result.withRagInfo(
+                    retrievalTimeMs,
+                    chunksRetrieved
+            );
+
+            printResult(
+                    withRag.withResourceUsage(snapshot.diff(genStats)),
+                    inProcess(engineType)
+            );
         }
     }
 
@@ -176,54 +260,148 @@ public final class Main {
         return false;
     }
 
-    private static void printResult(RunResult result, boolean inProcess) {
+    private static void printResult(
+            RunResult result,
+            boolean inProcess
+    ) {
         System.out.println();
         System.out.println("Engine: " + result.engineType());
         System.out.println("Modelo: " + result.modelRef());
         System.out.println("Prompt: " + result.promptText());
         System.out.println("Respuesta: " + result.responseText());
-        System.out.println("Carga: " + result.loadTimeMs() + " ms");
-        System.out.println("Generacion: " + result.generateTimeMs() + " ms");
-        System.out.println("Tokens (aprox): " + result.tokensGenerated());
-        System.out.println("Tokens/seg (aprox): " + String.format("%.2f", result.tokensPerSecond()));
+
+        System.out.println(
+                "Preparacion (ensureReady): "
+                        + result.preparationTimeMs()
+                        + " ms"
+        );
+
+        System.out.println(
+                "Peticion (cliente): "
+                        + result.requestTimeMs()
+                        + " ms"
+        );
+
+        System.out.println(
+                "Tokens (aprox): "
+                        + result.tokensGenerated()
+        );
+
+        System.out.println(
+                "Tokens/seg (peticion cliente): "
+                        + String.format("%.2f", result.tokensPerSecond())
+        );
+
         ResourceUsage usage = result.resourceUsage();
+
         if (usage != null) {
-            String scope = inProcess ? "proceso del engine" : "solo overhead de benchmark-app (engine externo)";
+            String scope = inProcess
+                    ? "proceso del engine"
+                    : "solo overhead de benchmark-app (engine externo)";
+
             System.out.println("Recursos (" + scope + "):");
-            System.out.println("  Heap usado: " + usage.heapUsedMb() + " MB (delta " + usage.heapDeltaMb() + " MB)");
+
+            System.out.println(
+                    "  Heap usado: "
+                            + usage.heapUsedMb()
+                            + " MB (delta "
+                            + usage.heapDeltaMb()
+                            + " MB)"
+            );
+
             if (usage.rssMb() >= 0) {
-                System.out.println("  RAM real (RSS): " + usage.rssMb() + " MB (delta " + usage.rssDeltaMb() + " MB, pico " + usage.rssPeakMb() + " MB)");
+                System.out.println(
+                        "  RAM real (RSS): "
+                                + usage.rssMb()
+                                + " MB (delta "
+                                + usage.rssDeltaMb()
+                                + " MB, pico "
+                                + usage.rssPeakMb()
+                                + " MB)"
+                );
             } else {
-                System.out.println("  RAM real (RSS): no disponible en este sistema operativo");
+                System.out.println(
+                        "  RAM real (RSS): no disponible en este sistema operativo"
+                );
             }
-            System.out.println("  CPU proceso (carga+generacion): " + String.format("%.1f", usage.processCpuTimeMs()) + " ms (" + String.format("%.1f", usage.cpuPercent()) + "% CPU)");
+
+            System.out.println(
+                    "  CPU proceso (carga+generacion): "
+                            + String.format(
+                                    "%.1f",
+                                    usage.processCpuTimeMs()
+                            )
+                            + " ms ("
+                            + String.format(
+                                    "%.1f",
+                                    usage.cpuPercent()
+                            )
+                            + "% CPU)"
+            );
+
             if (inProcess) {
                 if (usage.generationSampleCount() > 0) {
-                    System.out.println("  CPU% promedio (generacion): " + String.format("%.1f", usage.cpuPercentAvgGeneration()) + " %");
-                    System.out.println("  CPU% pico (generacion): " + String.format("%.1f", usage.cpuPercentPeakGeneration()) + " %");
+                    System.out.println(
+                            "  CPU% promedio (generacion): "
+                                    + String.format(
+                                            "%.1f",
+                                            usage.cpuPercentAvgGeneration()
+                                    )
+                                    + " %"
+                    );
+
+                    System.out.println(
+                            "  CPU% pico (generacion): "
+                                    + String.format(
+                                            "%.1f",
+                                            usage.cpuPercentPeakGeneration()
+                                    )
+                                    + " %"
+                    );
                 } else {
-                    System.out.println("  CPU% generacion: sin muestras (generacion demasiado corta)");
+                    System.out.println(
+                            "  CPU% generacion: sin muestras "
+                                    + "(generacion demasiado corta)"
+                    );
                 }
-            }  
-            System.out.println("  GC: " + usage.gcCount() + " colecciones, " + usage.gcTimeMs() + " ms");
-            System.out.println("  CPUs disponibles: " + usage.availableProcessors());
+            }
+
+            System.out.println(
+                    "  GC: "
+                            + usage.gcCount()
+                            + " colecciones, "
+                            + usage.gcTimeMs()
+                            + " ms"
+            );
+
+            System.out.println(
+                    "  CPUs disponibles: "
+                            + usage.availableProcessors()
+            );
         }
     }
 
     private static Map<String, String> parseArgs(String[] args) {
         Map<String, String> map = new java.util.HashMap<>();
+
         for (String arg : args) {
             if (arg.startsWith("--")) {
                 String[] parts = arg.substring(2).split("=", 2);
-                map.put(parts[0], parts.length > 1 ? parts[1] : "true");
+                map.put(
+                        parts[0],
+                        parts.length > 1 ? parts[1] : "true"
+                );
             }
         }
+
         return map;
     }
 
     private static int readInt(String text, int fallback) {
         try {
-            return text.isBlank() ? fallback : Integer.parseInt(text);
+            return text.isBlank()
+                    ? fallback
+                    : Integer.parseInt(text);
         } catch (NumberFormatException e) {
             return fallback;
         }
@@ -231,7 +409,9 @@ public final class Main {
 
     private static float readFloat(String text, float fallback) {
         try {
-            return text.isBlank() ? fallback : Float.parseFloat(text);
+            return text.isBlank()
+                    ? fallback
+                    : Float.parseFloat(text);
         } catch (NumberFormatException e) {
             return fallback;
         }
